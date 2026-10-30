@@ -1,78 +1,136 @@
+import { useState, useCallback, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Physics, RigidBody } from '@react-three/rapier';
-import { OrbitControls, Stars } from '@react-three/drei';
-import './App.css';
+import { Physics } from '@react-three/rapier';
+import { OrbitControls } from '@react-three/drei';
+import { CosmicEnvironment } from './components/CosmicEnvironment';
+import { CelestialIsland } from './components/CelestialIsland';
+import { DestructibleMountain } from './components/DestructibleMountain';
+import { CelestialBow } from './components/CelestialBow';
+import { ImpactFX } from './components/ImpactFX';
+import { CameraShakeRig, type CameraShakeHandle } from './components/CameraShakeRig';
+import { GameHUD } from './components/GameHUD';
+import type { MountainStats, ImpactEvent } from './types/game';
 
 export default function App() {
+  const [isAiming, setIsAiming] = useState(false);
+  const [drawPower, setDrawPower] = useState(0);
+  const [showTrajectory, setShowTrajectory] = useState(true);
+  const [resetTrigger, setResetTrigger] = useState(0);
+  const [impacts, setImpacts] = useState<ImpactEvent[]>([]);
+  const impactIdCounter = useRef(1);
+  const cameraShakeRef = useRef<CameraShakeHandle>(null);
+
+  const [mountainStats, setMountainStats] = useState<MountainStats>({
+    totalPieces: 0,
+    activePieces: 0,
+    dislodgedPieces: 0,
+    coreIntact: true,
+  });
+
+  const handleImpact = useCallback((data: Omit<ImpactEvent, 'id'>) => {
+    const id = impactIdCounter.current++;
+    const newImpact: ImpactEvent = {
+      ...data,
+      id,
+    };
+    setImpacts((prev) => [...prev.slice(-20), newImpact]);
+
+    // Trigger dynamic seismic camera shake based on impact severity
+    const traumaAmount = data.isCore ? 0.95 : 0.42 * (data.intensity || 1.0);
+    cameraShakeRef.current?.addTrauma(traumaAmount);
+  }, []);
+
+  const handleBowFire = useCallback((powerRatio: number) => {
+    // Subtle kinetic recoil kick on bow release
+    const recoilTrauma = 0.12 + powerRatio * 0.26;
+    cameraShakeRef.current?.addTrauma(recoilTrauma);
+  }, []);
+
+  const handleExpireImpact = useCallback((id: number) => {
+    setImpacts((prev) => prev.filter((evt) => evt.id !== id));
+  }, []);
+
+  const handleResetMountain = useCallback(() => {
+    setResetTrigger((prev) => prev + 1);
+    setImpacts([]);
+  }, []);
+
+  const handleToggleTrajectory = useCallback(() => {
+    setShowTrajectory((prev) => !prev);
+  }, []);
+
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#030008' }}>
-      <Canvas camera={{ position: [0, 8, 16], fov: 60 }}>
-        {/* Cosmic Atmosphere & Lighting */}
-        <color attach="background" args={['#030008']} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[15, 25, 10]} intensity={2} castShadow />
-        <pointLight position={[0, -5, 0]} color="#4338ca" intensity={3} distance={25} />
+    <div
+      style={{
+        width: '100vw',
+        height: '100vh',
+        background: '#030008',
+        cursor: isAiming ? 'crosshair' : 'default',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <Canvas
+        shadows
+        camera={{ position: [0, 3.6, 8.2], fov: 56, far: 300 }}
+        style={{ width: '100%', height: '100%' }}
+      >
+        {/* Cosmic Atmosphere, Lighting & Distant Stars */}
+        <CosmicEnvironment />
 
-        {/* Starfield Background */}
-        <Stars radius={100} depth={50} count={5000} factor={4} saturation={1} fade speed={1} />
-
-        {/* Physics World Container */}
+        {/* Physics Simulation Container */}
         <Physics gravity={[0, -9.81, 0]}>
-          
-          {/* --- MYTHICAL FLOATING ISLAND (Manual Crafting) --- */}
-          
-          {/* 1. Main Island Surface (Static Ground) */}
-          <RigidBody type="fixed" friction={0.8}>
-            <mesh position={[0, -1, 0]}>
-              <boxGeometry args={[16, 1, 16]} />
-              <meshStandardMaterial color="#1e1b4b" roughness={0.9} />
-            </mesh>
-          </RigidBody>
+          {/* Milestone 1: Multi-Tiered Floating Celestial Island (Player Sanctum) */}
+          <CelestialIsland />
 
-          {/* 2. Layered Rock Underside (Creating the floating chunk look) */}
-          <RigidBody type="fixed">
-            <mesh position={[0, -2.2, 0]}>
-              <boxGeometry args={[12, 1.4, 12]} />
-              <meshStandardMaterial color="#312e81" roughness={1} />
-            </mesh>
-          </RigidBody>
+          {/* Milestone 3: Destructible Mountain Floating Across the Cosmic Chasm (at Z = -45, 1.5x scale) */}
+          <DestructibleMountain
+            key={`mountain_${resetTrigger}`}
+            onStatsChange={setMountainStats}
+            onImpact={handleImpact}
+          />
 
-          <RigidBody type="fixed">
-            <mesh position={[0, -3.8, 0]}>
-              <boxGeometry args={[7, 1.8, 7]} />
-              <meshStandardMaterial color="#1e1b4b" roughness={1} />
-            </mesh>
-          </RigidBody>
+          {/* Milestone 2: Celestial Bow at Island Edge (Z = 2) Shooting Across Space */}
+          <CelestialBow
+            onDragStateChange={setIsAiming}
+            onPowerChange={setDrawPower}
+            showTrajectory={showTrajectory}
+            onImpact={handleImpact}
+            onFire={handleBowFire}
+          />
 
-          <RigidBody type="fixed">
-            <mesh position={[0, -5.5, 0]}>
-              <boxGeometry args={[3, 1.5, 3]} />
-              <meshStandardMaterial color="#0f172a" roughness={1} />
-            </mesh>
-          </RigidBody>
-
-          {/* --- TARGET / INTERACTIVE TEST PIECES --- */}
-
-          {/* A small stack of blocks to test impact physics */}
-          <RigidBody position={[0, 1, 0]} restitution={0.3} mass={1}>
-            <mesh>
-              <boxGeometry args={[1.5, 1.5, 1.5]} />
-              <meshStandardMaterial color="#818cf8" emissive="#4f46e5" emissiveIntensity={0.2} />
-            </mesh>
-          </RigidBody>
-
-          <RigidBody position={[0, 3, 0]} restitution={0.3} mass={0.8}>
-            <mesh>
-              <boxGeometry args={[1, 1, 1]} />
-              <meshStandardMaterial color="#c084fc" emissive="#9333ea" emissiveIntensity={0.2} />
-            </mesh>
-          </RigidBody>
-
+          {/* Milestone 4: High-Energy Collision & Impact FX */}
+          <ImpactFX
+            impacts={impacts}
+            onExpire={handleExpireImpact}
+          />
         </Physics>
 
-        {/* Camera Controls */}
-        <OrbitControls makeDefault enableDamping dampingFactor={0.05} />
+        {/* Milestone 4: Dynamic Trauma-Based Camera Shake */}
+        <CameraShakeRig ref={cameraShakeRef} />
+
+        {/* Orbit Camera: Automatically disabled during bow aiming */}
+        <OrbitControls
+          makeDefault
+          target={[0, 2.2, -14]}
+          enabled={!isAiming}
+          enableDamping
+          dampingFactor={0.06}
+          minDistance={4}
+          maxDistance={90}
+          maxPolarAngle={Math.PI / 2 + 0.15}
+        />
       </Canvas>
+
+      {/* Cyber-Celestial HUD Overlay */}
+      <GameHUD
+        stats={mountainStats}
+        isAiming={isAiming}
+        powerPercent={drawPower}
+        showTrajectory={showTrajectory}
+        onToggleTrajectory={handleToggleTrajectory}
+        onResetMountain={handleResetMountain}
+      />
     </div>
   );
 }
