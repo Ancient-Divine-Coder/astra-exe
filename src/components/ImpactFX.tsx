@@ -118,6 +118,10 @@ function SingleImpact({
   const accretionDiskRef = useRef<THREE.Mesh>(null);
   const lensingRingRef = useRef<THREE.Mesh>(null);
   const photonRingRef = useRef<THREE.Mesh>(null);
+  const energyWaveRef1 = useRef<THREE.Mesh>(null);
+  const energyWaveMat1 = useRef<THREE.MeshBasicMaterial>(null);
+  const energyWaveRef2 = useRef<THREE.Mesh>(null);
+  const energyWaveMat2 = useRef<THREE.MeshBasicMaterial>(null);
 
   const astraType = event.astraType || 'astral';
   const astraConf = ASTRA_CONFIGS[astraType] || ASTRA_CONFIGS.astral;
@@ -288,7 +292,7 @@ function SingleImpact({
       }
     }
 
-    // 2. Brahmashira Black Hole Accretion Disk & Lensing Spin
+    // 2. Brahmashira Black Hole Accretion Disk, Lensing Spin & Gravitational Energy Waves
     if (isBrahmashira) {
       if (accretionDiskRef.current) {
         accretionDiskRef.current.rotation.z += 12.0 * delta;
@@ -302,6 +306,21 @@ function SingleImpact({
       if (photonRingRef.current) {
         const pPulse = 1.0 + Math.sin(elapsed * 0.02) * 0.08;
         photonRingRef.current.scale.set(pPulse, pPulse, pPulse);
+      }
+
+      // Rhythmic expanding gravitational energy waves (matching the periodic damage pulses)
+      const waveCycle1 = (elapsed % 1000) / 1000;
+      const waveCycle2 = ((elapsed + 500) % 1000) / 1000;
+
+      if (energyWaveRef1.current && energyWaveMat1.current) {
+        const s1 = 1.35 + waveCycle1 * 13.0;
+        energyWaveRef1.current.scale.set(s1, s1, s1);
+        energyWaveMat1.current.opacity = Math.pow(1 - waveCycle1, 1.3) * 0.75 * (1 - progress * 0.4);
+      }
+      if (energyWaveRef2.current && energyWaveMat2.current) {
+        const s2 = 1.35 + waveCycle2 * 13.0;
+        energyWaveRef2.current.scale.set(s2, s2, s2);
+        energyWaveMat2.current.opacity = Math.pow(1 - waveCycle2, 1.3) * 0.75 * (1 - progress * 0.4);
       }
     }
 
@@ -514,6 +533,32 @@ function SingleImpact({
               color="#38bdf8"
               transparent
               opacity={0.65}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 7. Concentric Rhythmic Gravitational Energy Waves */}
+          <mesh ref={energyWaveRef1}>
+            <ringGeometry args={[1.0, 1.45, 64]} />
+            <meshBasicMaterial
+              ref={energyWaveMat1}
+              color="#c084fc"
+              transparent
+              opacity={0}
+              side={THREE.DoubleSide}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+          <mesh ref={energyWaveRef2}>
+            <ringGeometry args={[1.0, 1.45, 64]} />
+            <meshBasicMaterial
+              ref={energyWaveMat2}
+              color="#38bdf8"
+              transparent
+              opacity={0}
+              side={THREE.DoubleSide}
               blending={THREE.AdditiveBlending}
               depthWrite={false}
             />

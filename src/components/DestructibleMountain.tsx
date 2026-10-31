@@ -294,13 +294,13 @@ function MountainPiece({
             );
 
             // Gravitational Spaghettification & Devouring into the Singularity:
-            // As pieces approach the event horizon, they stretch, shrink, and vanish!
-            if (dist < 3.2 && meshRef.current) {
-              const shrink = Math.max(0.01, (dist - 0.7) / 2.5);
+            // As pieces approach the event horizon, they stretch, shrink, and vanish into the void!
+            if (dist < 4.5 && meshRef.current) {
+              const shrink = Math.max(0.01, (dist - 1.2) / 3.0);
               meshRef.current.scale.set(shrink, shrink, shrink);
 
-              // If piece crosses event horizon (dist <= 0.85), it is fully devoured!
-              if (dist <= 0.85 && !isDespawningRef.current) {
+              // If piece crosses the event horizon (dist <= 1.45) or is drawn into collapsing core (dist < 2.4 when progress > 0.65), it is fully devoured!
+              if ((dist <= 1.45 || (progress > 0.65 && dist < 2.4)) && !isDespawningRef.current) {
                 isDespawningRef.current = true;
                 onDespawn?.(config.id);
                 return;
@@ -603,11 +603,61 @@ export function DestructibleMountain({
     setVortices([]);
   }, [materialType]);
 
-  // Clean expired singularity vortices
+  // Clean expired singularity vortices and emit continuous gravitational energy wave damage
+  const lastWaveDamageTimeRef = useRef(0);
+
   useFrame(() => {
     if (vortices.length === 0) return;
     const now = performance.now();
     setVortices((prev) => prev.filter((v) => now - v.startTime < v.duration));
+
+    // Brahmashira Gravitational Energy Waves: pulse damage every 420ms while vortex is active
+    if (now - lastWaveDamageTimeRef.current >= 420 && vortices.length > 0) {
+      lastWaveDamageTimeRef.current = now;
+
+      const profile = MOUNTAIN_TYPES[materialType]?.profile;
+      const toughness = profile?.toughness || 0.8;
+      // Continuous gravitational wave pulse deals 20-30 damage per wave
+      const pulseDamage = Math.round(Math.max(12, 28 * (1 - toughness * 0.45) * vortices.length));
+
+      setHealthState((prev) => {
+        const nextHealth = Math.max(0, prev.currentHealth - pulseDamage);
+        return {
+          ...prev,
+          currentHealth: nextHealth,
+          lastDamageTaken: pulseDamage,
+          lastDamageTime: now,
+        };
+      });
+
+      // Gravitational tidal resonance waves destabilize and loosen nearby fragile chunks
+      vortices.forEach((v) => {
+        const waveFieldRadius = v.radius * 1.5;
+        setDislodgedMap((prev) => {
+          let updated = false;
+          const next = new Map(prev);
+          pieces.forEach((p) => {
+            if (!next.has(p.id) && !p.isCore) {
+              const dx = p.position[0] - v.center[0];
+              const dy = p.position[1] - v.center[1];
+              const dz = p.position[2] - v.center[2];
+              const dist = Math.hypot(dx, dy, dz);
+
+              if (dist <= waveFieldRadius && Math.random() < 0.2) {
+                updated = true;
+                const invDist = Math.max(0.2, dist);
+                next.set(p.id, [
+                  (dx / invDist) * 3.2,
+                  (dy / invDist) * 2.2 + 1.8,
+                  (dz / invDist) * 3.2 - 3.5,
+                ]);
+              }
+            }
+          });
+          return updated ? next : prev;
+        });
+      });
+    }
   });
 
   const handlePieceImpact = useCallback(
@@ -677,20 +727,20 @@ export function DestructibleMountain({
       if (astraType === 'brahmashira') {
         const vortexRadius =
           materialType === 'Iron'
-            ? 3.8
+            ? 4.8
             : materialType === 'Basalt'
-            ? 4.5
+            ? 5.6
             : materialType === 'DuctileRock'
-            ? 5.0
-            : 5.6;
+            ? 6.2
+            : 6.8;
 
         const newVortex: ActiveVortex = {
           id: Date.now() + Math.random(),
           center: contactPos,
           startTime: performance.now(),
-          duration: 3200, // 3.2s sustained singularity event
+          duration: 3400, // 3.4s sustained singularity event
           radius: vortexRadius,
-          strength: 65,
+          strength: 70,
         };
         setVortices((prev) => [...prev, newVortex]);
       }
@@ -706,12 +756,12 @@ export function DestructibleMountain({
         if (astraType === 'brahmashira') {
           const vortexRadius =
             materialType === 'Iron'
-              ? 3.8
+              ? 4.8
               : materialType === 'Basalt'
-              ? 4.5
+              ? 5.6
               : materialType === 'DuctileRock'
-              ? 5.0
-              : 5.6;
+              ? 6.2
+              : 6.8;
 
           const candidates: { piece: FracturedPieceConfig; dist: number }[] = [];
           pieces.forEach((p) => {
@@ -729,12 +779,12 @@ export function DestructibleMountain({
           candidates.sort((a, b) => a.dist - b.dist);
           const maxPulled =
             materialType === 'Iron'
-              ? 5
-              : materialType === 'Basalt'
               ? 7
+              : materialType === 'Basalt'
+              ? 9
               : materialType === 'DuctileRock'
-              ? 8
-              : 10;
+              ? 11
+              : 13;
           const pulled = candidates.slice(0, maxPulled);
 
           pulled.forEach(({ piece: p }) => {
