@@ -10,6 +10,7 @@ import { ImpactFX } from './components/ImpactFX';
 import { CameraShakeRig, type CameraShakeHandle } from './components/CameraShakeRig';
 import { GameHUD } from './components/GameHUD';
 import type { MountainStats, ImpactEvent, AstraType, MountainMaterialType } from './types/game';
+import { initializeMountainHealth } from './types/game';
 
 export default function App() {
   const [selectedAstra, setSelectedAstra] = useState<AstraType>('astral');
@@ -22,12 +23,13 @@ export default function App() {
   const impactIdCounter = useRef(1);
   const cameraShakeRef = useRef<CameraShakeHandle>(null);
 
-  const [mountainStats, setMountainStats] = useState<MountainStats>({
+  const [mountainStats, setMountainStats] = useState<MountainStats>(() => ({
     totalPieces: 0,
     activePieces: 0,
     dislodgedPieces: 0,
     coreIntact: true,
-  });
+    health: initializeMountainHealth('Basalt'),
+  }));
 
   const handleImpact = useCallback((data: Omit<ImpactEvent, 'id'>) => {
     const id = impactIdCounter.current++;

@@ -259,9 +259,71 @@ export interface ImpactEvent {
   materialType?: MountainMaterialType;
 }
 
+export interface MountainHealthState {
+  maxHealth: number;
+  currentHealth: number;
+  selectedMaterial: MountainMaterialType;
+  lastDamageTaken?: number;
+  lastDamageTime?: number;
+}
+
+export function initializeMountainHealth(materialType: MountainMaterialType): MountainHealthState {
+  const profile = MOUNTAIN_MATERIALS[materialType] || MOUNTAIN_MATERIALS.Basalt;
+  const baseVolumeFactor = 1000;
+  const maxHealth = Math.round(baseVolumeFactor * profile.hardness * profile.toughness);
+
+  return {
+    maxHealth,
+    currentHealth: maxHealth,
+    selectedMaterial: materialType,
+  };
+}
+
+export function calculateArrowImpactDamage(
+  arrowMass: number,
+  impactSpeed: number,
+  materialProfile: MountainMaterialProfile,
+  astraType: AstraType = 'astral'
+): number {
+  // Kinetic Energy formula: KE = 0.5 * m * v^2
+  const rawKE = 0.5 * arrowMass * (impactSpeed * impactSpeed);
+  const kineticEnergy = rawKE * 0.038;
+
+  // Toughness resistance: Higher toughness absorbs and mitigates incoming damage
+  const damageMitigation = materialProfile.toughness * 0.8 + materialProfile.hardness * 0.2;
+  let finalDamage = Math.max(kineticEnergy * (1.0 - damageMitigation * 0.75), 6.0);
+
+  // Elemental Astra Multipliers:
+  if (materialProfile.name === 'Crystal') {
+    // Crystal (Mohs 9+, Brittle): Shatters violently to Agni thermal shock; deflects Vayu
+    if (astraType === 'agni') finalDamage *= 3.4;
+    else if (astraType === 'vayu') finalDamage *= 0.55;
+    else if (astraType === 'brahmashira') finalDamage *= 2.4;
+  } else if (materialProfile.name === 'Iron-Core') {
+    // Iron (Ultra-Dense Matrix): High yield strength; softened by Agni thermal heat; glances Astral
+    if (astraType === 'agni') finalDamage *= 2.3;
+    else if (astraType === 'vayu') finalDamage *= 1.25;
+    else if (astraType === 'astral') finalDamage *= 0.70;
+    else if (astraType === 'brahmashira') finalDamage *= 2.2;
+  } else if (materialProfile.name === 'Ductile-Stone') {
+    // Ductile Stone (Sedimentary Sandstone): Absorbs blast, sheared by hyper-velocity Vayu
+    if (astraType === 'vayu') finalDamage *= 2.1;
+    else if (astraType === 'agni') finalDamage *= 1.1;
+    else if (astraType === 'brahmashira') finalDamage *= 2.2;
+  } else if (materialProfile.name === 'Basalt') {
+    // Basalt (Solid Magma Bedrock): Heavy armor, blasted by Agni
+    if (astraType === 'agni') finalDamage *= 2.4;
+    else if (astraType === 'vayu') finalDamage *= 1.35;
+    else if (astraType === 'brahmashira') finalDamage *= 2.2;
+  }
+
+  return Math.round(finalDamage);
+}
+
 export interface MountainStats {
   totalPieces: number;
   activePieces: number;
   dislodgedPieces: number;
   coreIntact: boolean;
+  health: MountainHealthState;
 }

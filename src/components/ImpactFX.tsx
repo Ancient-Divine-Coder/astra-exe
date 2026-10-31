@@ -30,11 +30,11 @@ interface MaterialVFXProfile {
 
 const MATERIAL_VFX_PROFILES: Record<MountainMaterialType, MaterialVFXProfile> = {
   Basalt: {
-    sparkBaseCount: 36,
-    sparkColors: ['#ff4500', '#f97316', '#3b0764'], // Incandescent magma embers & volcanic ash
-    sparkSize: 0.18,
-    debrisCount: 8,
-    debrisGeometry: 'dodecahedron', // Angular volcanic chunks
+    sparkBaseCount: 75,
+    sparkColors: ['#ff4500', '#f97316', '#3b0764'], // Incandescent magma embers & fine volcanic ash
+    sparkSize: 0.13,
+    debrisCount: 22,
+    debrisGeometry: 'dodecahedron', // Small angular volcanic rock flakes
     debrisColor: '#1e1b4b',
     debrisEmissive: '#f97316',
     debrisRoughness: 0.9,
@@ -47,45 +47,45 @@ const MATERIAL_VFX_PROFILES: Record<MountainMaterialType, MaterialVFXProfile> = 
     dustHaloColor: '#431407',
   },
   Iron: {
-    sparkBaseCount: 48,
+    sparkBaseCount: 90,
     sparkColors: ['#ffffff', '#fef08a', '#f59e0b'], // White-hot molten metal spatter & golden arcs
-    sparkSize: 0.17,
-    debrisCount: 7,
-    debrisGeometry: 'box', // Elongated metallic shrapnel slivers
+    sparkSize: 0.11,
+    debrisCount: 24,
+    debrisGeometry: 'box', // Fine metallic shrapnel slivers
     debrisColor: '#475569',
     debrisEmissive: '#fbbf24',
     debrisRoughness: 0.35,
     debrisMetalness: 0.92,
     coneAngleDeg: 48,
     coneJitter: 0.28,
-    microgravity: -3.8, // Heavy dense metallic chunks
+    microgravity: -3.8,
     dragFactor: 0.988,
     shockwaveColor: '#fef08a',
     dustHaloColor: '#cbd5e1',
   },
   Crystal: {
-    sparkBaseCount: 42,
+    sparkBaseCount: 85,
     sparkColors: ['#ffffff', '#e0f2fe', '#38bdf8'], // Prismatic diamond glints & aetheric sparkles
-    sparkSize: 0.22,
-    debrisCount: 10,
-    debrisGeometry: 'octahedron', // Faceted diamond/quartz crystal shards
+    sparkSize: 0.14,
+    debrisCount: 28,
+    debrisGeometry: 'octahedron', // Lightweight sharp crystalline micro-facets
     debrisColor: '#0284c7',
     debrisEmissive: '#38bdf8',
     debrisRoughness: 0.12,
     debrisMetalness: 0.35,
     coneAngleDeg: 38,
     coneJitter: 0.22,
-    microgravity: -2.2, // Light brittle gem shards floating effortlessly in deep space
+    microgravity: -2.2,
     dragFactor: 0.982,
     shockwaveColor: '#38bdf8',
     dustHaloColor: '#a5f3fc',
   },
   DuctileRock: {
-    sparkBaseCount: 40,
+    sparkBaseCount: 82,
     sparkColors: ['#fed7aa', '#fb923c', '#c2410c'], // Billowing terracotta dust motes & sandstone powder
-    sparkSize: 0.20,
-    debrisCount: 6,
-    debrisGeometry: 'cylinder', // Flat layered sedimentary shale/clay slabs
+    sparkSize: 0.13,
+    debrisCount: 20,
+    debrisGeometry: 'cylinder', // Small sedimentary shale/clay flakes
     debrisColor: '#9a3412',
     debrisEmissive: '#ea580c',
     debrisRoughness: 0.88,
@@ -93,7 +93,7 @@ const MATERIAL_VFX_PROFILES: Record<MountainMaterialType, MaterialVFXProfile> = 
     coneAngleDeg: 55,
     coneJitter: 0.45,
     microgravity: -2.5,
-    dragFactor: 0.975, // Porous dust cloud experiences slightly higher drag
+    dragFactor: 0.975,
     shockwaveColor: '#fb923c',
     dustHaloColor: '#7c2d12',
   },
@@ -243,7 +243,7 @@ function SingleImpact({
         (Math.random() - 0.5) * (materialType === 'Crystal' ? 24 : 16)
       );
 
-      const scale = (event.isCore ? 0.24 : 0.17) + Math.random() * (event.isCore ? 0.18 : 0.13);
+      const scale = (event.isCore ? 0.09 : 0.055) + Math.random() * (event.isCore ? 0.06 : 0.04);
 
       items.push({
         position: new THREE.Vector3(0, 0, 0),

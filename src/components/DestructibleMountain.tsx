@@ -4,7 +4,15 @@ import { useFrame } from '@react-three/fiber';
 import { RigidBody, interactionGroups } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three/rapier';
 import { COLLISION_GROUPS, ASTRA_CONFIGS, MOUNTAIN_TYPES } from '../types/game';
-import type { FracturedPieceConfig, MountainStats, AstraType, MountainMaterialProfile, MountainMaterialType } from '../types/game';
+import type {
+  FracturedPieceConfig,
+  MountainStats,
+  AstraType,
+  MountainMaterialProfile,
+  MountainMaterialType,
+  MountainHealthState,
+} from '../types/game';
+import { initializeMountainHealth, calculateArrowImpactDamage } from '../types/game';
 
 export interface ActiveVortex {
   id: number;
@@ -29,12 +37,13 @@ interface DestructibleMountainProps {
   }) => void;
 }
 
-// Generate pre-fractured pieces floating in space across the cosmic chasm (at Z = -50, elevated at Y = 10.0, 2.2x scale: ~25x24x18 units)
+// Generate smaller, tightly-nested fractured pieces floating across the cosmic chasm (at Z = -50, elevated at Y = 10.0)
+// Scaled down to ~0.55x-0.65x of previous monolithic blocks with ~47 faceted pieces for realistic fine-grained destruction
 export function generateMountainPieces(materialType: MountainMaterialType = 'Basalt'): FracturedPieceConfig[] {
   const pieces: FracturedPieceConfig[] = [];
-  const SCALE = 2.2; // Massive 2.2x scale spanning ~25w x 24h x 18d
-  const centerZ = -50; // Elevated deeper across cosmic chasm (~52 units from bow)
-  const centerY = 10.0; // Elevated above island plane
+  const SCALE = 2.1; // Overall mountain envelope ~24w x 22h x 18d
+  const centerZ = -50;
+  const centerY = 10.0;
 
   const matConfig = MOUNTAIN_TYPES[materialType] || MOUNTAIN_TYPES.Basalt;
   const mountainMat = matConfig.profile;
@@ -56,9 +65,9 @@ export function generateMountainPieces(materialType: MountainMaterialType = 'Bas
     isCore = false
   ) => {
     // RigidBody mass scaled by material density
-    const calcMass = baseMass * SCALE * (material.density / 10.0);
-    // Base threshold dynamically scaled to the chosen material's toughness
-    const dynamicThreshold = Math.round(140 * material.toughness * customThresholdMultiplier);
+    const calcMass = baseMass * (material.density / 10.0);
+    // Dynamic break threshold scaled to material toughness
+    const dynamicThreshold = Math.round(100 * material.toughness * customThresholdMultiplier);
 
     pieces.push({
       id,
@@ -91,78 +100,91 @@ export function generateMountainPieces(materialType: MountainMaterialType = 'Bas
     });
   };
 
-  // --- TIER 1: Lower Bedrock Foundation (Heavy Base Armor) ---
+  // --- TIER 1: Lower Bedrock Foundation (14 smaller faceted base chunks) ---
   const fColor = palette.foundation;
   const fEmissive = palette.foundationEmissive;
-  const fMass = 6.0;
+  const fMass = 2.8;
 
-  addPiece('f_left', 'foundation', [-3.2, -1.8, 0.0], [2.2, 1.8, 2.2], [0.05, 0.2, -0.05], fMass, fColor, fEmissive, 0.25, 'boulder', mountainMat, 1.05);
-  addPiece('f_front_l', 'foundation', [-1.2, -1.8, 0.8], [2.1, 1.8, 2.0], [-0.02, 0.1, 0.03], fMass, fColor, fEmissive, 0.25, 'slab', mountainMat, 1.0);
-  addPiece('f_front_r', 'foundation', [1.2, -1.8, 0.8], [2.1, 1.8, 2.0], [0.03, -0.15, -0.02], fMass, fColor, fEmissive, 0.25, 'slab', mountainMat, 1.0);
-  addPiece('f_right', 'foundation', [3.2, -1.8, 0.0], [2.2, 1.8, 2.2], [-0.04, -0.2, 0.04], fMass, fColor, fEmissive, 0.25, 'boulder', mountainMat, 1.05);
-  addPiece('f_back_l', 'foundation', [-2.0, -1.8, -1.5], [2.2, 1.8, 2.2], [0.02, 0.3, 0.05], fMass + 1.0, fColor, fEmissive, 0.2, 'pillar', mountainMat, 1.1);
-  addPiece('f_back_c', 'foundation', [0.0, -1.8, -2.0], [2.4, 1.8, 2.2], [-0.05, 0.0, 0.0], fMass + 1.5, fColor, fEmissive, 0.2, 'slab', mountainMat, 1.15);
-  addPiece('f_back_r', 'foundation', [2.0, -1.8, -1.5], [2.2, 1.8, 2.2], [-0.02, -0.3, -0.05], fMass + 1.0, fColor, fEmissive, 0.2, 'pillar', mountainMat, 1.1);
-  addPiece('f_keystone', 'foundation', [0.0, -3.2, -0.2], [2.6, 2.2, 2.6], [Math.PI, 0.2, 0], fMass + 2.0, fColor, fEmissive, 0.2, 'peak', mountainMat, 1.25);
-  addPiece('f_buttress_l', 'foundation', [-2.4, -3.0, 0.6], [1.9, 1.8, 1.9], [0.1, 0.2, -0.1], fMass + 1.0, fColor, fEmissive, 0.2, 'boulder', mountainMat, 1.05);
-  addPiece('f_buttress_r', 'foundation', [2.4, -3.0, 0.6], [1.9, 1.8, 1.9], [-0.1, -0.2, 0.1], fMass + 1.0, fColor, fEmissive, 0.2, 'boulder', mountainMat, 1.05);
+  addPiece('f_left_1', 'foundation', [-3.4, -2.0, 0.2], [1.1, 0.95, 1.1], [0.08, 0.3, -0.05], fMass, fColor, fEmissive, 0.2, 'boulder', mountainMat, 1.0);
+  addPiece('f_left_2', 'foundation', [-2.6, -1.9, -0.8], [1.15, 0.95, 1.05], [-0.04, 0.15, 0.06], fMass, fColor, fEmissive, 0.2, 'slab', mountainMat, 1.0);
+  addPiece('f_fl_1', 'foundation', [-1.6, -1.9, 1.0], [1.05, 0.95, 1.0], [0.03, -0.2, 0.04], fMass, fColor, fEmissive, 0.2, 'slab', mountainMat, 0.95);
+  addPiece('f_fl_2', 'foundation', [-0.6, -1.9, 1.3], [1.1, 0.95, 1.05], [-0.05, 0.1, -0.02], fMass, fColor, fEmissive, 0.2, 'boulder', mountainMat, 0.95);
+  addPiece('f_fr_1', 'foundation', [0.6, -1.9, 1.3], [1.1, 0.95, 1.05], [0.05, -0.1, 0.02], fMass, fColor, fEmissive, 0.2, 'boulder', mountainMat, 0.95);
+  addPiece('f_fr_2', 'foundation', [1.6, -1.9, 1.0], [1.05, 0.95, 1.0], [-0.03, 0.2, -0.04], fMass, fColor, fEmissive, 0.2, 'slab', mountainMat, 0.95);
+  addPiece('f_right_1', 'foundation', [2.6, -1.9, -0.8], [1.15, 0.95, 1.05], [0.04, -0.15, -0.06], fMass, fColor, fEmissive, 0.2, 'slab', mountainMat, 1.0);
+  addPiece('f_right_2', 'foundation', [3.4, -2.0, 0.2], [1.1, 0.95, 1.1], [-0.08, -0.3, 0.05], fMass, fColor, fEmissive, 0.2, 'boulder', mountainMat, 1.0);
+  addPiece('f_bl_1', 'foundation', [-2.2, -2.0, -1.7], [1.1, 1.0, 1.1], [0.02, 0.4, 0.05], fMass + 0.4, fColor, fEmissive, 0.2, 'pillar', mountainMat, 1.05);
+  addPiece('f_bc_1', 'foundation', [-0.9, -2.0, -2.1], [1.2, 1.0, 1.1], [-0.03, 0.1, 0.0], fMass + 0.5, fColor, fEmissive, 0.2, 'slab', mountainMat, 1.1);
+  addPiece('f_bc_2', 'foundation', [0.9, -2.0, -2.1], [1.2, 1.0, 1.1], [0.03, -0.1, 0.0], fMass + 0.5, fColor, fEmissive, 0.2, 'slab', mountainMat, 1.1);
+  addPiece('f_br_1', 'foundation', [2.2, -2.0, -1.7], [1.1, 1.0, 1.1], [-0.02, -0.4, -0.05], fMass + 0.4, fColor, fEmissive, 0.2, 'pillar', mountainMat, 1.05);
+  addPiece('f_keystone', 'foundation', [0.0, -3.0, -0.2], [1.4, 1.2, 1.4], [Math.PI, 0.1, 0], fMass + 1.0, fColor, fEmissive, 0.2, 'peak', mountainMat, 1.2);
+  addPiece('f_buttress', 'foundation', [0.0, -2.2, 0.7], [1.3, 1.0, 1.2], [0.1, 0.0, 0.0], fMass + 0.5, fColor, fEmissive, 0.2, 'slab', mountainMat, 1.0);
 
   // --- INNER CELESTIAL CORE (Heart of the Mountain Material) ---
   addPiece(
     'celestial_core',
     'core',
-    [0.0, 0.5, 0.0],
-    [1.4, 1.9, 1.4],
+    [0.0, 0.4, 0.0],
+    [0.9, 1.2, 0.9],
     [0.1, 0.4, 0.2],
-    5.0,
+    3.2,
     palette.core,
     palette.coreEmissive,
-    2.8,
+    2.6,
     'crystal_shard',
     mountainMat,
-    1.4,
+    1.35,
     true
   );
 
-  // --- TIER 2: Mid Mountain Outer Shell & Armor Matrix ---
+  // --- TIER 2: Mid Mountain Outer Shell & Faceted Armor (17 smaller chunks) ---
   const mColor = palette.mid;
   const mEmissive = palette.midEmissive;
-  const mMass = 4.0;
+  const mMass = 2.0;
 
-  addPiece('m_shield_l', 'mid', [-1.8, 0.2, 1.2], [1.8, 1.7, 1.6], [0.06, 0.25, -0.04], mMass, mColor, mEmissive, 0.4, 'boulder', mountainMat, 0.75);
-  addPiece('m_shield_c', 'mid', [0.0, 0.2, 1.8], [1.9, 1.7, 1.5], [-0.04, 0.0, 0.02], mMass + 0.5, mColor, mEmissive, 0.5, 'slab', mountainMat, 0.85);
-  addPiece('m_shield_r', 'mid', [1.8, 0.2, 1.2], [1.8, 1.7, 1.6], [-0.06, -0.25, 0.04], mMass, mColor, mEmissive, 0.4, 'boulder', mountainMat, 0.75);
-  addPiece('m_flank_l', 'mid', [-2.6, 0.2, -0.2], [1.8, 1.7, 1.8], [0.03, 0.35, 0.06], mMass, mColor, mEmissive, 0.35, 'pillar', mountainMat, 0.8);
-  addPiece('m_flank_r', 'mid', [2.6, 0.2, -0.2], [1.8, 1.7, 1.8], [-0.03, -0.35, -0.06], mMass, mColor, mEmissive, 0.35, 'pillar', mountainMat, 0.8);
-  addPiece('m_back_l', 'mid', [-1.6, 0.2, -1.8], [1.8, 1.7, 1.8], [0.05, 0.45, 0.02], mMass, mColor, mEmissive, 0.3, 'boulder', mountainMat, 0.75);
-  addPiece('m_back_c', 'mid', [0.0, 0.2, -2.2], [2.0, 1.7, 1.8], [-0.05, 0.0, 0.0], mMass, mColor, mEmissive, 0.3, 'slab', mountainMat, 0.85);
-  addPiece('m_back_r', 'mid', [1.6, 0.2, -1.8], [1.8, 1.7, 1.8], [-0.05, -0.45, -0.02], mMass, mColor, mEmissive, 0.3, 'boulder', mountainMat, 0.75);
-  addPiece('m_matrix_fl', 'mid', [-1.1, 1.2, 1.3], [1.6, 1.4, 1.5], [0.04, 0.15, -0.03], mMass - 0.5, mColor, mEmissive, 0.45, 'slab', mountainMat, 0.7);
-  addPiece('m_matrix_fr', 'mid', [1.1, 1.2, 1.3], [1.6, 1.4, 1.5], [-0.04, -0.15, 0.03], mMass - 0.5, mColor, mEmissive, 0.45, 'slab', mountainMat, 0.7);
-  addPiece('m_matrix_bl', 'mid', [-1.1, 1.2, -1.4], [1.6, 1.4, 1.5], [0.03, 0.2, 0.04], mMass - 0.5, mColor, mEmissive, 0.4, 'slab', mountainMat, 0.75);
-  addPiece('m_matrix_br', 'mid', [1.1, 1.2, -1.4], [1.6, 1.4, 1.5], [-0.03, -0.2, -0.04], mMass - 0.5, mColor, mEmissive, 0.4, 'slab', mountainMat, 0.75);
+  addPiece('m_shield_fl', 'mid', [-1.3, 0.1, 1.2], [1.05, 0.95, 0.95], [0.05, 0.2, -0.03], mMass, mColor, mEmissive, 0.35, 'boulder', mountainMat, 0.75);
+  addPiece('m_shield_fc', 'mid', [0.0, 0.1, 1.5], [1.1, 0.95, 0.9], [-0.04, 0.0, 0.02], mMass + 0.2, mColor, mEmissive, 0.4, 'slab', mountainMat, 0.8);
+  addPiece('m_shield_fr', 'mid', [1.3, 0.1, 1.2], [1.05, 0.95, 0.95], [-0.05, -0.2, 0.03], mMass, mColor, mEmissive, 0.35, 'boulder', mountainMat, 0.75);
+  addPiece('m_flank_l1', 'mid', [-2.3, 0.1, 0.4], [1.0, 0.95, 1.0], [0.04, 0.3, 0.05], mMass, mColor, mEmissive, 0.3, 'pillar', mountainMat, 0.75);
+  addPiece('m_flank_l2', 'mid', [-2.4, 0.1, -0.6], [1.0, 0.95, 1.0], [-0.02, 0.35, -0.04], mMass, mColor, mEmissive, 0.3, 'boulder', mountainMat, 0.75);
+  addPiece('m_flank_r1', 'mid', [2.3, 0.1, 0.4], [1.0, 0.95, 1.0], [-0.04, -0.3, -0.05], mMass, mColor, mEmissive, 0.3, 'pillar', mountainMat, 0.75);
+  addPiece('m_flank_r2', 'mid', [2.4, 0.1, -0.6], [1.0, 0.95, 1.0], [0.02, -0.35, 0.04], mMass, mColor, mEmissive, 0.3, 'boulder', mountainMat, 0.75);
+  addPiece('m_back_l', 'mid', [-1.4, 0.1, -1.6], [1.05, 0.95, 1.0], [0.04, 0.4, 0.02], mMass, mColor, mEmissive, 0.3, 'boulder', mountainMat, 0.75);
+  addPiece('m_back_c', 'mid', [0.0, 0.1, -1.8], [1.15, 0.95, 1.0], [-0.04, 0.0, 0.0], mMass, mColor, mEmissive, 0.3, 'slab', mountainMat, 0.8);
+  addPiece('m_back_r', 'mid', [1.4, 0.1, -1.6], [1.05, 0.95, 1.0], [-0.04, -0.4, -0.02], mMass, mColor, mEmissive, 0.3, 'boulder', mountainMat, 0.75);
+  addPiece('m_matrix_fl', 'mid', [-0.9, 1.0, 0.9], [0.95, 0.9, 0.9], [0.03, 0.15, -0.02], mMass - 0.3, mColor, mEmissive, 0.4, 'slab', mountainMat, 0.65);
+  addPiece('m_matrix_fr', 'mid', [0.9, 1.0, 0.9], [0.95, 0.9, 0.9], [-0.03, -0.15, 0.02], mMass - 0.3, mColor, mEmissive, 0.4, 'slab', mountainMat, 0.65);
+  addPiece('m_matrix_ml', 'mid', [-1.5, 1.0, 0.0], [0.95, 0.9, 0.95], [0.04, 0.25, 0.03], mMass - 0.3, mColor, mEmissive, 0.35, 'boulder', mountainMat, 0.7);
+  addPiece('m_matrix_mr', 'mid', [1.5, 1.0, 0.0], [0.95, 0.9, 0.95], [-0.04, -0.25, -0.03], mMass - 0.3, mColor, mEmissive, 0.35, 'boulder', mountainMat, 0.7);
+  addPiece('m_matrix_bl', 'mid', [-0.9, 1.0, -1.0], [0.95, 0.9, 0.9], [0.02, 0.2, 0.03], mMass - 0.3, mColor, mEmissive, 0.35, 'slab', mountainMat, 0.7);
+  addPiece('m_matrix_br', 'mid', [0.9, 1.0, -1.0], [0.95, 0.9, 0.9], [-0.02, -0.2, -0.03], mMass - 0.3, mColor, mEmissive, 0.35, 'slab', mountainMat, 0.7);
+  addPiece('m_matrix_top', 'mid', [0.0, 1.3, 0.2], [1.0, 0.85, 0.95], [0.01, 0.1, 0.0], mMass - 0.2, mColor, mEmissive, 0.45, 'slab', mountainMat, 0.65);
 
-  // --- TIER 3: Upper Slopes & Ridge Shoulders ---
+  // --- TIER 3: Upper Slopes & Ridge Shoulders (11 smaller faceted chunks) ---
   const uColor = palette.peak;
   const uEmissive = palette.peakEmissive;
-  const uMass = 2.5;
+  const uMass = 1.5;
 
-  addPiece('u_front_l', 'mid', [-1.2, 2.0, 0.6], [1.5, 1.5, 1.5], [0.08, 0.15, -0.06], uMass, uColor, uEmissive, 0.55, 'boulder', mountainMat, 0.55);
-  addPiece('u_front_r', 'mid', [1.2, 2.0, 0.6], [1.5, 1.5, 1.5], [-0.08, -0.15, 0.06], uMass, uColor, uEmissive, 0.55, 'boulder', mountainMat, 0.55);
-  addPiece('u_center', 'mid', [0.0, 2.2, -0.2], [1.6, 1.6, 1.6], [0.02, 0.3, 0.0], uMass + 0.5, uColor, uEmissive, 0.7, 'slab', mountainMat, 0.6);
-  addPiece('u_back_l', 'mid', [-1.0, 2.0, -1.2], [1.5, 1.5, 1.5], [0.04, 0.5, 0.03], uMass, uColor, uEmissive, 0.5, 'boulder', mountainMat, 0.55);
-  addPiece('u_back_r', 'mid', [1.0, 2.0, -1.2], [1.5, 1.5, 1.5], [-0.04, -0.5, -0.03], uMass, uColor, uEmissive, 0.5, 'boulder', mountainMat, 0.55);
-  addPiece('u_crest_l', 'mid', [-0.7, 2.7, 0.3], [1.3, 1.3, 1.3], [0.06, 0.1, -0.04], uMass - 0.5, uColor, uEmissive, 0.6, 'boulder', mountainMat, 0.45);
-  addPiece('u_crest_r', 'mid', [0.7, 2.7, 0.3], [1.3, 1.3, 1.3], [-0.06, -0.1, 0.04], uMass - 0.5, uColor, uEmissive, 0.6, 'boulder', mountainMat, 0.45);
+  addPiece('u_front_l', 'mid', [-0.9, 2.0, 0.5], [0.9, 0.9, 0.9], [0.06, 0.15, -0.04], uMass, uColor, uEmissive, 0.5, 'boulder', mountainMat, 0.55);
+  addPiece('u_front_c', 'mid', [0.0, 2.1, 0.7], [0.95, 0.9, 0.85], [-0.03, 0.0, 0.02], uMass, uColor, uEmissive, 0.55, 'slab', mountainMat, 0.55);
+  addPiece('u_front_r', 'mid', [0.9, 2.0, 0.5], [0.9, 0.9, 0.9], [-0.06, -0.15, 0.04], uMass, uColor, uEmissive, 0.5, 'boulder', mountainMat, 0.55);
+  addPiece('u_flank_l', 'mid', [-1.3, 1.9, -0.3], [0.85, 0.9, 0.85], [0.04, 0.3, 0.02], uMass - 0.2, uColor, uEmissive, 0.45, 'boulder', mountainMat, 0.5);
+  addPiece('u_flank_r', 'mid', [1.3, 1.9, -0.3], [0.85, 0.9, 0.85], [-0.04, -0.3, -0.02], uMass - 0.2, uColor, uEmissive, 0.45, 'boulder', mountainMat, 0.5);
+  addPiece('u_back_l', 'mid', [-0.7, 1.9, -1.0], [0.85, 0.9, 0.85], [0.03, 0.4, 0.02], uMass - 0.2, uColor, uEmissive, 0.45, 'boulder', mountainMat, 0.5);
+  addPiece('u_back_c', 'mid', [0.0, 2.0, -1.1], [0.9, 0.9, 0.85], [-0.03, 0.0, 0.0], uMass - 0.2, uColor, uEmissive, 0.45, 'slab', mountainMat, 0.5);
+  addPiece('u_back_r', 'mid', [0.7, 1.9, -1.0], [0.85, 0.9, 0.85], [-0.03, -0.4, -0.02], uMass - 0.2, uColor, uEmissive, 0.45, 'boulder', mountainMat, 0.5);
+  addPiece('u_crest_l', 'mid', [-0.5, 2.7, 0.2], [0.8, 0.8, 0.8], [0.05, 0.1, -0.03], uMass - 0.4, uColor, uEmissive, 0.6, 'boulder', mountainMat, 0.45);
+  addPiece('u_crest_c', 'mid', [0.0, 2.8, 0.3], [0.8, 0.8, 0.75], [0.0, 0.0, 0.0], uMass - 0.4, uColor, uEmissive, 0.65, 'slab', mountainMat, 0.45);
+  addPiece('u_crest_r', 'mid', [0.5, 2.7, 0.2], [0.8, 0.8, 0.8], [-0.05, -0.1, 0.03], uMass - 0.4, uColor, uEmissive, 0.6, 'boulder', mountainMat, 0.45);
 
-  // --- TIER 4: Mountain Peaks & Apex Spire ---
+  // --- TIER 4: Mountain Peaks & Apex Spire (4 tapered jagged shards) ---
   const pColor = palette.peak;
   const pEmissive = palette.peakEmissive;
 
-  addPiece('p_left', 'peak', [-0.6, 3.6, 0.0], [1.2, 1.4, 1.2], [0.05, 0.2, -0.04], 1.6, pColor, pEmissive, 0.8, 'boulder', mountainMat, 0.38);
-  addPiece('p_right', 'peak', [0.6, 3.6, 0.0], [1.2, 1.4, 1.2], [-0.05, -0.2, 0.04], 1.6, pColor, pEmissive, 0.8, 'boulder', mountainMat, 0.38);
-  addPiece('p_summit', 'peak', [0.0, 5.0, 0.0], [1.0, 1.9, 1.0], [0.03, 0.1, -0.03], 1.0, pColor, pEmissive, 1.1, 'peak', mountainMat, 0.32);
-  addPiece('p_spire', 'peak', [0.0, 6.2, 0.0], [0.6, 1.5, 0.6], [0.02, 0.15, -0.02], 0.8, palette.core, palette.coreEmissive, 1.4, 'peak', mountainMat, 0.28);
+  addPiece('p_left', 'peak', [-0.45, 3.6, 0.0], [0.75, 0.95, 0.75], [0.04, 0.15, -0.03], 1.0, pColor, pEmissive, 0.8, 'boulder', mountainMat, 0.38);
+  addPiece('p_right', 'peak', [0.45, 3.6, 0.0], [0.75, 0.95, 0.75], [-0.04, -0.15, 0.03], 1.0, pColor, pEmissive, 0.8, 'boulder', mountainMat, 0.38);
+  addPiece('p_summit', 'peak', [0.0, 4.6, 0.0], [0.7, 1.2, 0.7], [0.02, 0.1, -0.02], 0.8, pColor, pEmissive, 1.1, 'peak', mountainMat, 0.32);
+  addPiece('p_spire', 'peak', [0.0, 5.7, 0.0], [0.45, 1.1, 0.45], [0.02, 0.15, -0.02], 0.6, palette.core, palette.coreEmissive, 1.5, 'peak', mountainMat, 0.28);
 
   return pieces;
 }
@@ -175,6 +197,7 @@ function MountainPiece({
   vortices,
   onDislodge,
   onPieceImpact,
+  onDamage,
   onDespawn,
 }: {
   config: FracturedPieceConfig;
@@ -196,6 +219,7 @@ function MountainPiece({
     astraType?: AstraType,
     hitMaterial?: MountainMaterialType
   ) => void;
+  onDamage?: (dmg: number) => void;
   onDespawn?: (id: string) => void;
 }) {
   const rbRef = useRef<RapierRigidBody>(null);
@@ -205,7 +229,6 @@ function MountainPiece({
   const pendingImpulseRef = useRef<[number, number, number] | null>(null);
   const hasAppliedImpulseRef = useRef(false);
   const accumulatedDamageRef = useRef(0);
-  const [stressFlash, setStressFlash] = useState(0);
 
   const geometry = useMemo(() => {
     switch (config.shapeType) {
@@ -243,18 +266,14 @@ function MountainPiece({
           if (dist < v.radius && dist > 0.05) {
             const invDist = 1 / dist;
             const progress = age / v.duration;
-            // Inward gravitational suction force pulling stones toward singularity core
             const pullForce = v.strength * Math.pow(1 - progress, 0.4);
-            // Tangential vortex orbital swirl around the singularity eye
             const swirlForce = 24 * (1 - progress);
 
             const fx = (dx * invDist) * pullForce + (-dz * invDist) * swirlForce;
-            // Upward lift to counteract natural gravity and keep stones trapped floating in the vortex!
             const fy = (dy * invDist) * pullForce + 10.5 * (1 - progress);
             const fz = (dz * invDist) * pullForce + (dx * invDist) * swirlForce;
 
             const vel = rbRef.current.linvel();
-            // Dampen outward escape momentum and pull into swirling orbit!
             rbRef.current.setLinvel(
               {
                 x: vel.x * 0.91 + fx * delta,
@@ -264,7 +283,6 @@ function MountainPiece({
               true
             );
 
-            // Orbiting rotational tumble
             rbRef.current.applyTorqueImpulse(
               {
                 x: -dz * 0.06,
@@ -283,17 +301,13 @@ function MountainPiece({
         meshRef.current.scale.set(shrink, shrink, shrink);
       }
 
-      // Objective 4: Automatically dispose of falling debris when Y < -15 or Z < -100
+      // Automatically dispose of falling debris when Y < -15 or Z < -100
       if (pos.y < -15 || pos.z < -100 || Math.abs(pos.x) > 60) {
         isDespawningRef.current = true;
         onDespawn?.(config.id);
       }
     } catch {
       // ignore
-    }
-
-    if (stressFlash > 0.01) {
-      setStressFlash((prev) => Math.max(0, prev - delta * 3.5));
     }
   });
 
@@ -323,7 +337,7 @@ function MountainPiece({
     (e: any) => {
       // Throttle rapid repeated impacts on the exact same piece
       const now = performance.now();
-      if (now - lastImpactTimeRef.current < 80) return;
+      if (now - lastImpactTimeRef.current < 70) return;
 
       const otherObject = e.other?.rigidBodyObject;
       const otherBody = e.other?.rigidBody;
@@ -351,89 +365,55 @@ function MountainPiece({
         const measuredSpeed = arrowVel ? Math.hypot(arrowVel.x, arrowVel.y, arrowVel.z) : 55;
         const impactSpeed = recordedSpeed && recordedSpeed > 20 ? recordedSpeed : Math.max(50, measuredSpeed);
         const arrowMass = otherBody ? otherBody.mass() : 1.5;
+
+        // 2. Compute Mountain Health Bar Damage via calculateArrowImpactDamage
+        const dmg = calculateArrowImpactDamage(arrowMass, impactSpeed, material, astraType);
+        onDamage?.(dmg);
+
         let impactEnergy = impactSpeed * arrowMass;
 
-        // 2. Material-Specific Interaction (Tuned for Basalt, Iron, and Crystal):
+        // 3. Material-Specific Interaction (Tuned for Basalt, Iron, Crystal, Ductile):
         if (material.name === 'Basalt') {
-          // BASALT: Dense Volcanic Armor Bedrock
-          if (astraType === 'agni') {
-            impactEnergy *= 2.5; // High thermal detonation spalling
-          } else if (astraType === 'vayu') {
-            impactEnergy *= 1.45; // Hyper-velocity armor penetration
-          } else if (astraType === 'astral') {
-            impactEnergy *= 1.15; // Standard balanced piercing
-          }
+          if (astraType === 'agni') impactEnergy *= 2.5;
+          else if (astraType === 'vayu') impactEnergy *= 1.45;
+          else if (astraType === 'astral') impactEnergy *= 1.15;
         } else if (material.name === 'Iron-Core') {
-          // IRON: Ultra-Dense Heavy Metallic Matrix (Destroyed hardly; high deflection & yield strength)
-          if (astraType === 'agni') {
-            // Agni Astra: Thermal Softening & Rupture! Concentrated solar heat melts/ruptures the metallic weld
-            impactEnergy *= 2.35;
-          } else if (astraType === 'vayu') {
-            // Vayu Astra: Focused kinetic pierce against heavy iron armor
-            impactEnergy *= 1.25;
-          } else if (astraType === 'astral') {
-            // Astral Arrow: Standard kinetic arrow glances off heavy iron plate with metallic ricochet sparks
-            impactEnergy *= 0.85; // Strong resistance to standard kinetic pierce
-          }
+          if (astraType === 'agni') impactEnergy *= 2.35;
+          else if (astraType === 'vayu') impactEnergy *= 1.25;
+          else if (astraType === 'astral') impactEnergy *= 0.85;
         } else if (material.name === 'Crystal') {
-          // CRYSTAL: Ultra-Hard Gem Lattice (Mohs 9+), Brittle to Thermal Shock, Deflects High-Speed Arrows
-          if (astraType === 'agni') {
-            // Agni Astra: Catastrophic Cleavage Fracture!
-            // Extreme thermal gradient shatters crystal cleavage planes instantly
-            impactEnergy *= 3.4; // Massive brittle thermal shattering multiplier
-          } else if (astraType === 'vayu') {
-            // Vayu Astra: Deflected by Hard Crystal Facets!
-            // Streamlined high-velocity projectile is glanced/ricocheted off slick diamond-hard crystal faces
-            impactEnergy *= 0.60; // High deflection resistance
-          } else if (astraType === 'astral') {
-            // Astral Arrow: Moderate celestial resonance
-            impactEnergy *= 1.1;
-          }
+          if (astraType === 'agni') impactEnergy *= 3.4;
+          else if (astraType === 'vayu') impactEnergy *= 0.60;
+          else if (astraType === 'astral') impactEnergy *= 1.1;
         } else if (material.name === 'Ductile-Stone') {
-          // DUCTILE STONE: Porous Sedimentary Sandstone & Clay
-          // Plastically deforms to absorb explosive blasts & blunt impacts, but vulnerable to high-velocity shear:
-          if (astraType === 'vayu') {
-            // Vayu Astra: Inertial Shear Penetration! (The hard counter to Ductile Stone)
-            // Hyper-velocity projectile shears through porous sandstone before the rock has time to deform
-            impactEnergy *= 1.85; // Massive shear penetration bonus
-          } else if (astraType === 'agni') {
-            // Agni Astra: Porous sandstone compacts and muffles thermal explosive shockwaves
-            impactEnergy *= 1.15; // Heavily dampened thermal shock
-          } else if (astraType === 'astral') {
-            // Astral Arrow: Standard kinetic energy partially absorbed by clay matrix
-            impactEnergy *= 0.95;
-          }
+          if (astraType === 'vayu') impactEnergy *= 1.85;
+          else if (astraType === 'agni') impactEnergy *= 1.15;
+          else if (astraType === 'astral') impactEnergy *= 0.95;
         }
 
-        // 3. Force Protection & Hardness Absorption:
+        // Force Protection & Hardness Absorption:
         const hardnessAbsorptionRate =
           material.name === 'Crystal' && astraType === 'vayu'
-            ? 0.45 // Crystal facets strongly deflect Vayu's streamlined kinetic tip!
+            ? 0.45
             : material.name === 'Iron-Core'
             ? 0.32
             : material.name === 'Ductile-Stone'
-            ? 0.16 // Low hardness: arrows penetrate deeply into soft sandstone
+            ? 0.16
             : 0.22;
         const hardnessAbsorption = material.hardness * hardnessAbsorptionRate;
         const effectiveEnergy = impactEnergy * (1 - hardnessAbsorption);
 
-        // Ductility buffer:
-        // Ductile-Stone has 0.5 ductility! It absorbs +22 energy into plastic deformation cushion before cracking:
         const ductilityBuffer =
           material.name === 'Ductile-Stone'
-            ? material.ductility * 44 // Absorbs up to 22 energy units into plastic compaction
+            ? material.ductility * 44
             : material.ductility * (material.name === 'Iron-Core' ? 18 : 12);
         const dynamicFractureThreshold = (config.fractureThreshold ?? 60) + ductilityBuffer;
 
-        // Trigger visual stress flash on impact
-        setStressFlash(1.0);
-
-        // 4. Cumulative Structural Damage Tracking:
-        // Chunks remember damage from previous hits until their yield threshold is breached!
+        // Cumulative Structural Damage Tracking:
         accumulatedDamageRef.current += effectiveEnergy;
         const hasFractured =
           accumulatedDamageRef.current >= dynamicFractureThreshold ||
-          effectiveEnergy >= dynamicFractureThreshold * 0.92 ||
+          effectiveEnergy >= dynamicFractureThreshold * 0.90 ||
           astraType === 'brahmashira';
 
         let contactPos: [number, number, number] = [
@@ -455,47 +435,46 @@ function MountainPiece({
         if (otherBody) {
           try {
             const aPos = otherBody.translation();
-            if (aPos) {
-              contactPos = [aPos.x, aPos.y, aPos.z];
-            }
+            if (aPos) contactPos = [aPos.x, aPos.y, aPos.z];
           } catch {
             // fallback to config position
           }
         }
 
-        const hitMatName = (config.material.name === 'Iron-Core' ? 'Iron' : config.material.name === 'Ductile-Stone' ? 'DuctileRock' : config.material.name) as MountainMaterialType;
+        const hitMatName = (config.material.name === 'Iron-Core'
+          ? 'Iron'
+          : config.material.name === 'Ductile-Stone'
+          ? 'DuctileRock'
+          : config.material.name) as MountainMaterialType;
 
-        // 5. Kinetic Energy Threshold Check:
-        // If cumulative damage hasn't yet breached the material threshold:
+        // If cumulative damage hasn't yet breached the material fracture threshold:
         if (!hasFractured && !isDislodged) {
-          // Material-specific deflection spark colors:
           const deflectionColor =
             material.name === 'Crystal'
-              ? '#e0f2fe' // Radiant diamond-white/cyan ricochet flash
+              ? '#e0f2fe'
               : material.name === 'Iron-Core'
-              ? '#fbbf24' // Metallic golden ricochet sparks
+              ? '#fbbf24'
               : material.name === 'Ductile-Stone'
-              ? '#fb923c' // Warm terracotta/sandstone compaction dust flash
-              : '#818cf8'; // Volcanic stone sparks
+              ? '#fb923c'
+              : '#818cf8';
           const deflectionIntensity =
             material.name === 'Crystal'
               ? 0.95
               : material.name === 'Iron-Core'
               ? 0.75
               : material.name === 'Ductile-Stone'
-              ? 0.45 // Soft, dampened compaction impact
+              ? 0.45
               : 0.55;
           onPieceImpact?.(contactPos, normal, false, deflectionColor, deflectionIntensity, astraType, hitMatName);
           return;
         }
 
-        // 6. Energy breached threshold: switch chunk to dynamic & apply kinetic impulse
+        // Energy breached threshold: switch chunk to dynamic & apply kinetic impulse
         accumulatedDamageRef.current = 0;
         const baseImpulse = astraConf.impulseMultiplier;
         let impulseVector: [number, number, number];
 
         if (astraType === 'brahmashira') {
-          // Brahmashira does NOT blast the struck stone away! It detaches it into the vortex!
           impulseVector = [0, 0.8, 0];
         } else {
           const flightDir = recordedVel
@@ -504,9 +483,7 @@ function MountainPiece({
                 ? new THREE.Vector3(arrowVel.x, arrowVel.y, arrowVel.z).normalize()
                 : new THREE.Vector3(0, 0.15, -1));
 
-          // Ductility dampens violent jerk; brittle crystal pops sharply
           const brittlenessFactor = 1.0 + (1.0 - material.ductility) * (material.name === 'Crystal' ? 0.8 : 0.45);
-          // Mass damping: Density 8.0 for ductile stone
           const massDamping = Math.min(1.8, 12.0 / material.density);
           const pushScalar = Math.min(3.2, Math.max(0.7, (effectiveEnergy / dynamicFractureThreshold) * brittlenessFactor)) * massDamping;
 
@@ -519,7 +496,6 @@ function MountainPiece({
 
         pendingImpulseRef.current = impulseVector;
 
-        // If piece was already dislodged and gets hit again, transfer kinetic momentum
         if (isDislodged && rbRef.current) {
           if (astraType !== 'brahmashira') {
             rbRef.current.applyImpulse(
@@ -537,13 +513,12 @@ function MountainPiece({
         }
       }
     },
-    [config.color, config.fractureThreshold, config.id, config.isCore, config.material, config.position, isDislodged, onDislodge, onPieceImpact]
+    [config.color, config.fractureThreshold, config.id, config.isCore, config.material, config.position, isDislodged, onDamage, onDislodge, onPieceImpact]
   );
 
   return (
     <RigidBody
       ref={rbRef}
-      // Fixed in cosmic space until struck, then becomes dynamic and tumbles into the abyss!
       type={isDislodged ? 'dynamic' : 'fixed'}
       position={config.position}
       rotation={config.rotation}
@@ -565,11 +540,11 @@ function MountainPiece({
       <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
         <meshStandardMaterial
           color={config.color}
-          emissive={stressFlash > 0.05 ? '#ffffff' : config.emissiveColor}
+          emissive={config.emissiveColor}
           emissiveIntensity={
             isDislodged
-              ? config.emissiveIntensity * 1.5
-              : config.emissiveIntensity + stressFlash * 2.8
+              ? config.emissiveIntensity * 1.3
+              : config.emissiveIntensity
           }
           roughness={config.roughness ?? 0.8}
           metalness={config.metalness ?? 0.15}
@@ -580,9 +555,9 @@ function MountainPiece({
       {/* Radiant celestial light from the Core */}
       {config.isCore && (
         <pointLight
-          color={config.color}
-          intensity={isDislodged ? 14 : 7}
-          distance={20}
+          color={config.emissiveColor}
+          intensity={3.5}
+          distance={12}
           decay={2}
         />
       )}
@@ -596,27 +571,29 @@ export function DestructibleMountain({
   onImpact,
 }: DestructibleMountainProps) {
   const pieces = useMemo(() => generateMountainPieces(materialType), [materialType]);
-  const [dislodgedMap, setDislodgedMap] = useState<Map<string, [number, number, number]>>(() => new Map());
-  const [despawnedSet, setDespawnedSet] = useState<Set<string>>(() => new Set());
+  const [dislodgedMap, setDislodgedMap] = useState<Map<string, [number, number, number]>>(new Map());
+  const [despawnedSet, setDespawnedSet] = useState<Set<string>>(new Set());
   const [vortices, setVortices] = useState<ActiveVortex[]>([]);
 
-  // Periodically clean up expired singularity vortices
+  // Mountain Health State Management
+  const [healthState, setHealthState] = useState<MountainHealthState>(() =>
+    initializeMountainHealth(materialType)
+  );
+
+  // Sync health pool when material profile changes
+  useEffect(() => {
+    setHealthState(initializeMountainHealth(materialType));
+    setDislodgedMap(new Map());
+    setDespawnedSet(new Set());
+    setVortices([]);
+  }, [materialType]);
+
+  // Clean expired singularity vortices
   useFrame(() => {
     if (vortices.length === 0) return;
     const now = performance.now();
-    if (vortices.some((v) => now - v.startTime >= v.duration)) {
-      setVortices((prev) => prev.filter((v) => now - v.startTime < v.duration));
-    }
+    setVortices((prev) => prev.filter((v) => now - v.startTime < v.duration));
   });
-
-  const handleDespawn = useCallback((id: string) => {
-    setDespawnedSet((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-  }, []);
 
   const handlePieceImpact = useCallback(
     (
@@ -641,6 +618,38 @@ export function DestructibleMountain({
     [onImpact, materialType]
   );
 
+  const handleDamage = useCallback((dmg: number) => {
+    setHealthState((prev) => {
+      const nextHealth = Math.max(0, prev.currentHealth - dmg);
+      return {
+        ...prev,
+        currentHealth: nextHealth,
+        lastDamageTaken: dmg,
+        lastDamageTime: performance.now(),
+      };
+    });
+  }, []);
+
+  // Catastrophic mountain collapse if health reaches 0
+  useEffect(() => {
+    if (healthState.currentHealth <= 0 && pieces.length > 0) {
+      setDislodgedMap((prev) => {
+        if (prev.size >= pieces.length) return prev;
+        const next = new Map(prev);
+        pieces.forEach((p) => {
+          if (!next.has(p.id)) {
+            next.set(p.id, [
+              (Math.random() - 0.5) * 10,
+              Math.random() * 5 + 2,
+              -12 - Math.random() * 10,
+            ]);
+          }
+        });
+        return next;
+      });
+    }
+  }, [healthState.currentHealth, pieces]);
+
   const handleDislodge = useCallback(
     (
       id: string,
@@ -651,12 +660,11 @@ export function DestructibleMountain({
       const astraConf = ASTRA_CONFIGS[astraType] || ASTRA_CONFIGS.astral;
 
       if (astraType === 'brahmashira') {
-        // Spawn active singularity gravitational vortex at contact position!
         const newVortex: ActiveVortex = {
           id: Date.now() + Math.random(),
           center: contactPos,
           startTime: performance.now(),
-          duration: 2500, // 2.5s sustained gravitational vortex suction
+          duration: 2500,
           radius: 11.5,
           strength: 58,
         };
@@ -672,8 +680,6 @@ export function DestructibleMountain({
         next.set(id, directImpulse);
 
         if (astraType === 'brahmashira') {
-          // Brahmashira Singularity: Detach surrounding pieces without explosive blasting,
-          // allowing the continuous vortex suction to grab, lift, and swirl them inward!
           pieces.forEach((p) => {
             if (!next.has(p.id) && !p.isCore) {
               const dx = p.position[0] - contactPos[0];
@@ -693,7 +699,7 @@ export function DestructibleMountain({
           return next;
         }
 
-        // Standard / Agni / Vayu explosive dislodge (scaled for 2.2x mountain)
+        // Standard / Agni / Vayu explosive dislodge
         const isCrystal = materialType === 'Crystal';
         const isDuctile = materialType === 'DuctileRock';
         const baseRadius = 5.2;
@@ -701,9 +707,7 @@ export function DestructibleMountain({
           baseRadius *
           astraConf.blastRadiusMultiplier *
           (isCrystal && astraType === 'agni' ? 1.3 : isDuctile && astraType === 'agni' ? 0.75 : 1.0);
-        // Crystal is extremely brittle against Agni thermal blast (92% cascade shatter chance);
-        // Ductile sandstone compacts and muffles explosive blast waves (35% shatter chance),
-        // but Vayu cleanly shears through ductile layers (65% shatter chance):
+
         const shatterChance =
           astraType === 'agni'
             ? (isCrystal ? 0.92 : isDuctile ? 0.35 : 0.80)
@@ -737,7 +741,15 @@ export function DestructibleMountain({
     [pieces, materialType]
   );
 
-  // Notify parent of updated destruction stats
+  const handleDespawn = useCallback((id: string) => {
+    setDespawnedSet((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  // Notify parent of updated destruction and health stats
   useEffect(() => {
     const total = pieces.length;
     const dislodged = dislodgedMap.size;
@@ -748,8 +760,9 @@ export function DestructibleMountain({
       activePieces: total - dislodged,
       dislodgedPieces: dislodged,
       coreIntact,
+      health: healthState,
     });
-  }, [pieces.length, dislodgedMap, onStatsChange]);
+  }, [pieces.length, dislodgedMap, onStatsChange, healthState]);
 
   return (
     <group>
@@ -764,6 +777,7 @@ export function DestructibleMountain({
             vortices={vortices}
             onDislodge={handleDislodge}
             onPieceImpact={handlePieceImpact}
+            onDamage={handleDamage}
             onDespawn={handleDespawn}
           />
         );

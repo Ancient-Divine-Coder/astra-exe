@@ -67,10 +67,6 @@ export function GameHUD({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onResetMountain, onSelectAstra, onSelectMaterial, onToggleTrajectory, selectedMaterial]);
 
-  const intactPercent = stats.totalPieces > 0
-    ? Math.max(0, Math.round(((stats.totalPieces - stats.dislodgedPieces) / stats.totalPieces) * 100))
-    : 100;
-
   const currentAstra = ASTRA_CONFIGS[selectedAstra] || ASTRA_CONFIGS.astral;
   const currentMaterial = MOUNTAIN_TYPES[selectedMaterial] || MOUNTAIN_TYPES.Basalt;
 
@@ -149,69 +145,172 @@ export function GameHUD({
           </div>
         </div>
 
-        {/* Mountain Telemetry Monitor */}
-        <div
-          style={{
-            background: 'rgba(15, 23, 42, 0.85)',
-            backdropFilter: 'blur(12px)',
-            border: `1px solid ${currentMaterial.themeColor}44`,
-            borderRadius: '12px',
-            padding: '12px 18px',
-            minWidth: '240px',
-            boxShadow: `0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px ${currentMaterial.themeColor}18`,
-            transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
-            pointerEvents: 'auto',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.5px' }}>
-              MOUNTAIN INTEGRITY
-            </span>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: intactPercent > 40 ? currentMaterial.themeColor : '#f43f5e' }}>
-              {intactPercent}%
-            </span>
-          </div>
+        {/* Mountain Health & Telemetry Monitor */}
+        {(() => {
+          const health = stats.health || {
+            maxHealth: 680,
+            currentHealth: 680,
+            selectedMaterial: selectedMaterial,
+          };
+          const healthPercent = Math.max(
+            0,
+            Math.min(100, Math.round((health.currentHealth / health.maxHealth) * 100))
+          );
+          const showRecentDmg =
+            !!health.lastDamageTaken &&
+            performance.now() - (health.lastDamageTime || 0) < 1800;
 
-          {/* Progress bar */}
-          <div
-            style={{
-              width: '100%',
-              height: '8px',
-              backgroundColor: 'rgba(30, 41, 59, 0.8)',
-              borderRadius: '4px',
-              overflow: 'hidden',
-              marginBottom: '10px',
-            }}
-          >
+          return (
             <div
               style={{
-                width: `${intactPercent}%`,
-                height: '100%',
-                background: intactPercent > 50
-                  ? `linear-gradient(90deg, ${currentMaterial.themeColor}, ${currentMaterial.accentColor})`
-                  : 'linear-gradient(90deg, #f59e0b, #ef4444)',
-                transition: 'width 0.3s ease',
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#cbd5e1' }}>
-            <span>Dislodged Fragments:</span>
-            <strong style={{ color: currentMaterial.themeColor }}>{stats.dislodgedPieces} / {stats.totalPieces}</strong>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#cbd5e1', marginTop: '4px' }}>
-            <span>Celestial Core:</span>
-            <span
-              style={{
-                fontWeight: 700,
-                color: stats.coreIntact ? currentMaterial.themeColor : '#f43f5e',
+                background: 'rgba(15, 23, 42, 0.88)',
+                backdropFilter: 'blur(14px)',
+                border: `1px solid ${currentMaterial.themeColor}55`,
+                borderRadius: '12px',
+                padding: '12px 18px',
+                minWidth: '260px',
+                boxShadow: `0 8px 32px rgba(0, 0, 0, 0.55), 0 0 16px ${currentMaterial.themeColor}20`,
+                transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
+                pointerEvents: 'auto',
               }}
             >
-              {stats.coreIntact ? '✦ Shielded' : '⚡ BREACHED'}
-            </span>
-          </div>
-        </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  marginBottom: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      color: '#94a3b8',
+                      fontWeight: 700,
+                      letterSpacing: '0.8px',
+                    }}
+                  >
+                    MOUNTAIN HEALTH
+                  </span>
+                  {showRecentDmg && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        color: '#f43f5e',
+                        backgroundColor: 'rgba(244, 63, 94, 0.15)',
+                        border: '1px solid rgba(244, 63, 94, 0.4)',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      -{health.lastDamageTaken} DMG
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 800 }}>
+                  <span
+                    style={{
+                      color:
+                        healthPercent > 50
+                          ? currentMaterial.themeColor
+                          : healthPercent > 25
+                          ? '#f59e0b'
+                          : '#ef4444',
+                    }}
+                  >
+                    {health.currentHealth}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                    {' '}/ {health.maxHealth} HP
+                  </span>
+                </div>
+              </div>
+
+              {/* Dynamic Health Bar */}
+              <div
+                style={{
+                  width: '100%',
+                  height: '10px',
+                  backgroundColor: 'rgba(30, 41, 59, 0.85)',
+                  borderRadius: '5px',
+                  overflow: 'hidden',
+                  marginBottom: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  position: 'relative',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${healthPercent}%`,
+                    height: '100%',
+                    background:
+                      healthPercent > 50
+                        ? `linear-gradient(90deg, ${currentMaterial.themeColor}, ${currentMaterial.accentColor})`
+                        : healthPercent > 25
+                        ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+                        : 'linear-gradient(90deg, #dc2626, #7f1d1d)',
+                    boxShadow:
+                      healthPercent > 50
+                        ? `0 0 10px ${currentMaterial.themeColor}66`
+                        : '0 0 10px #ef444466',
+                    transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  color: '#cbd5e1',
+                }}
+              >
+                <span>Armor Material:</span>
+                <strong style={{ color: currentMaterial.themeColor }}>
+                  {currentMaterial.name} ({health.maxHealth} HP)
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  color: '#cbd5e1',
+                  marginTop: '4px',
+                }}
+              >
+                <span>Dislodged Fragments:</span>
+                <strong style={{ color: currentMaterial.themeColor }}>
+                  {stats.dislodgedPieces} / {stats.totalPieces}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  color: '#cbd5e1',
+                  marginTop: '4px',
+                }}
+              >
+                <span>Celestial Core:</span>
+                <span
+                  style={{
+                    fontWeight: 700,
+                    color: stats.coreIntact ? currentMaterial.themeColor : '#f43f5e',
+                  }}
+                >
+                  {stats.coreIntact ? '✦ Shielded' : '⚡ BREACHED'}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Divine Weapon Arsenal Selector (Left-Side Dock) */}
