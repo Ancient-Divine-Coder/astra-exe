@@ -390,18 +390,18 @@ function MountainPiece({
         // 3. Material-Specific Interaction (Tuned for Basalt, Iron, Crystal, Ductile):
         if (material.name === 'Basalt') {
           if (astraType === 'agni') impactEnergy *= 2.5;
-          else if (astraType === 'vayu') impactEnergy *= 1.45;
+          else if (astraType === 'vayu') impactEnergy *= 1.75;
           else if (astraType === 'astral') impactEnergy *= 1.15;
         } else if (material.name === 'Iron-Core') {
           if (astraType === 'agni') impactEnergy *= 2.35;
-          else if (astraType === 'vayu') impactEnergy *= 1.25;
+          else if (astraType === 'vayu') impactEnergy *= 1.55;
           else if (astraType === 'astral') impactEnergy *= 0.85;
         } else if (material.name === 'Crystal') {
           if (astraType === 'agni') impactEnergy *= 3.4;
-          else if (astraType === 'vayu') impactEnergy *= 0.60;
+          else if (astraType === 'vayu') impactEnergy *= 0.70;
           else if (astraType === 'astral') impactEnergy *= 1.1;
         } else if (material.name === 'Ductile-Stone') {
-          if (astraType === 'vayu') impactEnergy *= 1.85;
+          if (astraType === 'vayu') impactEnergy *= 2.45;
           else if (astraType === 'agni') impactEnergy *= 1.15;
           else if (astraType === 'astral') impactEnergy *= 0.95;
         }
@@ -502,11 +502,20 @@ function MountainPiece({
           const massDamping = Math.min(1.8, 12.0 / material.density);
           const pushScalar = Math.min(3.2, Math.max(0.7, (effectiveEnergy / dynamicFractureThreshold) * brittlenessFactor)) * massDamping;
 
-          impulseVector = [
-            flightDir.x * impactSpeed * 0.40 * baseImpulse * pushScalar,
-            (flightDir.y * impactSpeed * 0.40 + (material.name === 'Crystal' ? 5.5 : material.name === 'Ductile-Stone' ? 2.2 : 3.5)) * baseImpulse * pushScalar,
-            flightDir.z * impactSpeed * 0.65 * baseImpulse * pushScalar,
-          ];
+          if (astraType === 'vayu') {
+            // Vayu Astra: Hyper-velocity kinetic railgun punch. Blasts directly along flight vector with massive rearward velocity
+            impulseVector = [
+              flightDir.x * impactSpeed * 0.95 * baseImpulse * pushScalar,
+              (flightDir.y * impactSpeed * 0.45 + 2.0) * baseImpulse * pushScalar,
+              flightDir.z * impactSpeed * 1.55 * baseImpulse * pushScalar,
+            ];
+          } else {
+            impulseVector = [
+              flightDir.x * impactSpeed * 0.40 * baseImpulse * pushScalar,
+              (flightDir.y * impactSpeed * 0.40 + (material.name === 'Crystal' ? 5.5 : material.name === 'Ductile-Stone' ? 2.2 : 3.5)) * baseImpulse * pushScalar,
+              flightDir.z * impactSpeed * 0.65 * baseImpulse * pushScalar,
+            ];
+          }
         }
 
         pendingImpulseRef.current = impulseVector;
@@ -825,11 +834,18 @@ export function DestructibleMountain({
               if (dist < blastRadius && Math.random() < shatterChance) {
                 const invDist = Math.max(0.2, dist);
                 const push = (18 / invDist) * astraConf.impulseMultiplier;
-                const radialImpulse: [number, number, number] = [
-                  (dx / invDist) * push,
-                  (dy / invDist) * push + (astraType === 'agni' ? 10 : 5),
-                  (dz / invDist) * push - 10,
-                ];
+                const radialImpulse: [number, number, number] =
+                  astraType === 'vayu'
+                    ? [
+                        (dx / invDist) * push * 0.4,
+                        (dy / invDist) * push * 0.3 + 2.0,
+                        -Math.abs(push * 2.2) - 24, // violent hyper-kinetic punch straight backward into the abyss
+                      ]
+                    : [
+                        (dx / invDist) * push,
+                        (dy / invDist) * push + (astraType === 'agni' ? 10 : 5),
+                        (dz / invDist) * push - 10,
+                      ];
                 next.set(p.id, radialImpulse);
               }
             }

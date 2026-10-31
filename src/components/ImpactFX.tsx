@@ -128,6 +128,14 @@ function SingleImpact({
   const agniFireMantleMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const agniBlastWaveRef = useRef<THREE.Mesh>(null);
   const agniBlastWaveMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const vayuMachConeRef = useRef<THREE.Mesh>(null);
+  const vayuMachConeMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const vayuNeedleRef = useRef<THREE.Mesh>(null);
+  const vayuNeedleMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const vayuShockRing1Ref = useRef<THREE.Mesh>(null);
+  const vayuShockRing1MatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const vayuShockRing2Ref = useRef<THREE.Mesh>(null);
+  const vayuShockRing2MatRef = useRef<THREE.MeshBasicMaterial>(null);
 
   const astraType = event.astraType || 'astral';
   const astraConf = ASTRA_CONFIGS[astraType] || ASTRA_CONFIGS.astral;
@@ -141,6 +149,8 @@ function SingleImpact({
     ? 1200 // Extended thermonuclear explosion lifecycle
     : isBrahmashira
     ? 3500 // 3.5s dramatic singularity event
+    : astraType === 'vayu'
+    ? 850 // Sharp supersonic kinetic dissipation
     : 750; // ms
 
   // Calculate orientation aligned with the surface normal
@@ -157,7 +167,7 @@ function SingleImpact({
     if (event.isCore) count = Math.round(count * 1.5);
     if (astraType === 'agni') count = Math.round(matFX.sparkBaseCount * 2.2); // ~170-190 solar blast sparks and incandescent embers
     else if (isBrahmashira) count = 160; // Dense swirling gravitational accretion particle cloud
-    else if (astraType === 'vayu') count = Math.round(count * 1.2);
+    else if (astraType === 'vayu') count = Math.round(matFX.sparkBaseCount * 1.6); // ~120-140 hypersonic kinetic spallation sparks
 
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
@@ -196,27 +206,44 @@ function SingleImpact({
         positions[i * 3 + 1] = 0;
         positions[i * 3 + 2] = 0;
 
-        // Space Simulator Hypervelocity Inverted Conical Ejecta Curtain:
-        const azimuth = Math.random() * Math.PI * 2;
-        const jitter = (Math.random() - 0.5) * (astraType === 'agni' ? 0.7 : matFX.coneJitter);
-        const elevation = Math.max(0.12, coneAngleRad + jitter);
+        if (astraType === 'vayu') {
+          // Hypersonic kinetic needle spallation jet - tight, ultra-high-speed supersonic cone along surface normal
+          const azimuth = Math.random() * Math.PI * 2;
+          const coneTightness = (10 + Math.random() * 14) * (Math.PI / 180); // 10-24 deg tight kinetic beam
+          const radialDir = new THREE.Vector3()
+            .addScaledVector(tangent, Math.cos(azimuth))
+            .addScaledVector(bitangent, Math.sin(azimuth));
 
-        // Direction along conical sheet / spherical explosive starburst for Agni
-        const radialDir = new THREE.Vector3()
-          .addScaledVector(tangent, Math.cos(azimuth))
-          .addScaledVector(bitangent, Math.sin(azimuth));
+          const dir = new THREE.Vector3()
+            .addScaledVector(norm, Math.cos(coneTightness))
+            .addScaledVector(radialDir, Math.sin(coneTightness))
+            .normalize();
 
-        const dir = new THREE.Vector3()
-          .addScaledVector(norm, Math.sin(elevation))
-          .addScaledVector(radialDir, Math.cos(elevation))
-          .normalize();
+          const baseSpeed = (event.isCore ? 30 : 22) + Math.random() * 22;
+          velocities.push(dir.multiplyScalar(baseSpeed * 2.35));
+        } else {
+          // Space Simulator Hypervelocity Inverted Conical Ejecta Curtain:
+          const azimuth = Math.random() * Math.PI * 2;
+          const jitter = (Math.random() - 0.5) * (astraType === 'agni' ? 0.7 : matFX.coneJitter);
+          const elevation = Math.max(0.12, coneAngleRad + jitter);
 
-        const speedMult = astraType === 'vayu' ? 1.7 : astraType === 'agni' ? 1.95 : 1.0;
-        const baseSpeed = (event.isCore ? 18 : 12) + Math.random() * (event.isCore ? 20 : 16);
-        velocities.push(dir.multiplyScalar(baseSpeed * speedMult));
+          // Direction along conical sheet / spherical explosive starburst for Agni
+          const radialDir = new THREE.Vector3()
+            .addScaledVector(tangent, Math.cos(azimuth))
+            .addScaledVector(bitangent, Math.sin(azimuth));
+
+          const dir = new THREE.Vector3()
+            .addScaledVector(norm, Math.sin(elevation))
+            .addScaledVector(radialDir, Math.cos(elevation))
+            .normalize();
+
+          const speedMult = astraType === 'agni' ? 1.95 : 1.0;
+          const baseSpeed = (event.isCore ? 18 : 12) + Math.random() * (event.isCore ? 20 : 16);
+          velocities.push(dir.multiplyScalar(baseSpeed * speedMult));
+        }
       }
 
-      // Material-specific color mixing or white-hot solar incandescent explosion palette for Agni
+      // Material-specific color mixing or specialized palette for Agni / Vayu
       let mixed: THREE.Color;
       if (astraType === 'agni') {
         const rand = Math.random();
@@ -227,6 +254,15 @@ function SingleImpact({
           : rand < 0.85
           ? new THREE.Color('#f97316')
           : new THREE.Color('#ef4444');
+      } else if (astraType === 'vayu') {
+        const rand = Math.random();
+        mixed = rand < 0.40
+          ? new THREE.Color('#ffffff') // Incandescent white friction core
+          : rand < 0.75
+          ? new THREE.Color('#a7f3d0') // Luminous mint Mach condensation
+          : rand < 0.92
+          ? new THREE.Color('#10b981') // Emerald tempest shockwave
+          : new THREE.Color('#047857'); // Deep compressed air green
       } else {
         const r = Math.random();
         mixed = r < 0.4 ? c1.clone() : r < 0.75 ? c2.clone() : c3.clone();
@@ -258,7 +294,7 @@ function SingleImpact({
       ).normalize();
 
       const dir = randDir.addScaledVector(norm, 1.25).normalize();
-      const speed = (5 + Math.random() * 9) * (astraType === 'agni' ? 1.4 : astraType === 'vayu' ? 1.3 : 1.0);
+      const speed = (5 + Math.random() * 9) * (astraType === 'agni' ? 1.4 : astraType === 'vayu' ? 1.55 : 1.0);
       const velocity = dir.multiplyScalar(speed);
 
       const rotSpeed = new THREE.Vector3(
@@ -334,6 +370,30 @@ function SingleImpact({
         const wScale = 0.5 + Math.pow(progress, 0.55) * 9.5;
         agniBlastWaveRef.current.scale.set(wScale, wScale, wScale);
         agniBlastWaveMatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.6) * 0.95);
+      }
+    }
+
+    // 2b. Vayu Astra Supersonic Mach Vapor Cone, Piercing Needle & Shock Discs Animations
+    if (astraType === 'vayu') {
+      if (vayuMachConeRef.current && vayuMachConeMatRef.current) {
+        const coneExp = 0.35 + Math.pow(progress, 0.4) * 4.8;
+        vayuMachConeRef.current.scale.set(coneExp, coneExp, 1.0 + progress * 2.8);
+        vayuMachConeMatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.4) * 0.85);
+      }
+      if (vayuNeedleRef.current && vayuNeedleMatRef.current) {
+        const needleStretch = 1.0 + Math.pow(progress, 0.35) * 3.8;
+        vayuNeedleRef.current.scale.set(Math.max(0.01, 1 - progress * 0.75), Math.max(0.01, 1 - progress * 0.75), needleStretch);
+        vayuNeedleMatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.8) * 0.95);
+      }
+      if (vayuShockRing1Ref.current && vayuShockRing1MatRef.current) {
+        const s1 = 0.3 + Math.pow(progress, 0.45) * 6.8;
+        vayuShockRing1Ref.current.scale.set(s1, s1, s1);
+        vayuShockRing1MatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.6) * 0.9);
+      }
+      if (vayuShockRing2Ref.current && vayuShockRing2MatRef.current) {
+        const s2 = 0.2 + Math.pow(progress, 0.55) * 9.5;
+        vayuShockRing2Ref.current.scale.set(s2, s2, s2);
+        vayuShockRing2MatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.7) * 0.75);
       }
     }
 
@@ -655,8 +715,66 @@ function SingleImpact({
             />
           </mesh>
         </group>
+      ) : astraType === 'vayu' ? (
+        /* Vayu Astra Supersonic Tempest Shockwave & Hyper-Velocity Mach Jet */
+        <group quaternion={normalQuat}>
+          {/* 1. Aerodynamic Supersonic Prandtl-Glauert Mach Vapor Cone */}
+          <mesh ref={vayuMachConeRef} position={[0, 0, 0.8]} rotation={[Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[1.6, 3.4, 32, 1, true]} />
+            <meshBasicMaterial
+              ref={vayuMachConeMatRef}
+              color="#6ee7b7"
+              transparent
+              opacity={0.8}
+              side={THREE.DoubleSide}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 2. Razor-Sharp Kinetic Lancet Needle Core */}
+          <mesh ref={vayuNeedleRef} position={[0, 0, 1.6]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.04, 0.38, 4.8, 16]} />
+            <meshBasicMaterial
+              ref={vayuNeedleMatRef}
+              color="#ffffff"
+              transparent
+              opacity={0.95}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 3. Primary High-Velocity Emerald Toroidal Shock Disc */}
+          <mesh ref={vayuShockRing1Ref} position={[0, 0, 0.2]}>
+            <ringGeometry args={[0.35, 0.75, 48]} />
+            <meshBasicMaterial
+              ref={vayuShockRing1MatRef}
+              color="#10b981"
+              transparent
+              opacity={0.9}
+              side={THREE.DoubleSide}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 4. Secondary Outer Atmospheric Compression Disc */}
+          <mesh ref={vayuShockRing2Ref} position={[0, 0, 0.4]}>
+            <ringGeometry args={[0.55, 1.05, 48]} />
+            <meshBasicMaterial
+              ref={vayuShockRing2MatRef}
+              color="#a7f3d0"
+              transparent
+              opacity={0.75}
+              side={THREE.DoubleSide}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+        </group>
       ) : (
-        /* Inner High-Energy Core Flash for Astral/Vayu */
+        /* Inner High-Energy Core Flash for Astral */
         <mesh quaternion={normalQuat}>
           <circleGeometry args={[0.45, 24]} />
           <meshBasicMaterial
