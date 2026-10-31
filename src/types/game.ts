@@ -232,11 +232,11 @@ export const ASTRA_CONFIGS: Record<AstraType, AstraConfig> = {
     subtitle: 'Cosmic Singularity',
     color: '#c084fc',
     accentColor: '#7e22ce',
-    description: 'Cosmic Singularity that pulls loose debris into a vortex before collapse.',
+    description: 'Cosmic Singularity that pulls loose debris into a localized vortex and devours matter.',
     hotkey: '4',
     speedMultiplier: 1.05,
-    blastRadiusMultiplier: 1.8,
-    impulseMultiplier: 1.8,
+    blastRadiusMultiplier: 1.2,
+    impulseMultiplier: 1.4,
   },
 };
 
@@ -298,23 +298,23 @@ export function calculateArrowImpactDamage(
     // Crystal (Mohs 9+, Brittle): Shatters violently to Agni thermal shock; deflects Vayu
     if (astraType === 'agni') finalDamage *= 3.4;
     else if (astraType === 'vayu') finalDamage *= 0.55;
-    else if (astraType === 'brahmashira') finalDamage *= 2.4;
+    else if (astraType === 'brahmashira') finalDamage *= 1.65;
   } else if (materialProfile.name === 'Iron-Core') {
     // Iron (Ultra-Dense Matrix): High yield strength; softened by Agni thermal heat; glances Astral
     if (astraType === 'agni') finalDamage *= 2.3;
     else if (astraType === 'vayu') finalDamage *= 1.25;
     else if (astraType === 'astral') finalDamage *= 0.70;
-    else if (astraType === 'brahmashira') finalDamage *= 2.2;
+    else if (astraType === 'brahmashira') finalDamage *= 1.45;
   } else if (materialProfile.name === 'Ductile-Stone') {
     // Ductile Stone (Sedimentary Sandstone): Absorbs blast, sheared by hyper-velocity Vayu
     if (astraType === 'vayu') finalDamage *= 2.1;
     else if (astraType === 'agni') finalDamage *= 1.1;
-    else if (astraType === 'brahmashira') finalDamage *= 2.2;
+    else if (astraType === 'brahmashira') finalDamage *= 1.55;
   } else if (materialProfile.name === 'Basalt') {
     // Basalt (Solid Magma Bedrock): Heavy armor, blasted by Agni
     if (astraType === 'agni') finalDamage *= 2.4;
     else if (astraType === 'vayu') finalDamage *= 1.35;
-    else if (astraType === 'brahmashira') finalDamage *= 2.2;
+    else if (astraType === 'brahmashira') finalDamage *= 1.50;
   }
 
   return Math.round(finalDamage);

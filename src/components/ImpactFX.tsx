@@ -115,6 +115,9 @@ function SingleImpact({
   const haloMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const sparksRef = useRef<THREE.Points>(null);
   const debrisGroupRef = useRef<THREE.Group>(null);
+  const accretionDiskRef = useRef<THREE.Mesh>(null);
+  const lensingRingRef = useRef<THREE.Mesh>(null);
+  const photonRingRef = useRef<THREE.Mesh>(null);
 
   const astraType = event.astraType || 'astral';
   const astraConf = ASTRA_CONFIGS[astraType] || ASTRA_CONFIGS.astral;
@@ -127,7 +130,7 @@ function SingleImpact({
     : astraType === 'agni'
     ? 950
     : isBrahmashira
-    ? 2600
+    ? 3500 // 3.5s dramatic singularity event
     : 750; // ms
 
   // Calculate orientation aligned with the surface normal
@@ -143,7 +146,7 @@ function SingleImpact({
     let count = matFX.sparkBaseCount;
     if (event.isCore) count = Math.round(count * 1.5);
     if (astraType === 'agni') count = Math.round(count * 1.4);
-    else if (isBrahmashira) count = 54;
+    else if (isBrahmashira) count = 160; // Dense swirling gravitational accretion particle cloud
     else if (astraType === 'vayu') count = Math.round(count * 1.2);
 
     const positions = new Float32Array(count * 3);
@@ -167,11 +170,11 @@ function SingleImpact({
 
     for (let i = 0; i < count; i++) {
       if (isBrahmashira) {
-        // Singularity Vortex particles start spread in cosmic space and swirl inward
-        const r = 2.4 + Math.random() * 4.0;
+        // Massive Singularity Vortex particles start in wide orbit (up to 7.5 units) and spiral inward
+        const r = 1.6 + Math.random() * 6.2;
         const a = Math.random() * Math.PI * 2;
-        const yOff = (Math.random() - 0.5) * 2.4;
-        const rSpd = 4.2 + Math.random() * 5.2;
+        const yOff = (Math.random() - 0.5) * 3.4;
+        const rSpd = 5.0 + Math.random() * 7.5;
         vortexCoords.push({ radius: r, angle: a, yOffset: yOff, rotSpeed: rSpd });
 
         positions[i * 3] = Math.cos(a) * r;
@@ -277,15 +280,32 @@ function SingleImpact({
     // 1. Point Light Flash
     if (lightRef.current) {
       if (isBrahmashira) {
-        const pulse = 1.0 + Math.sin(elapsed * 0.015) * 0.3;
-        lightRef.current.intensity = 18 * (1 - progress * 0.7) * pulse;
+        const pulse = 1.0 + Math.sin(elapsed * 0.015) * 0.35;
+        lightRef.current.intensity = 26 * (1 - progress * 0.6) * pulse;
       } else {
         const baseIntensity = event.isCore ? 22 : astraType === 'agni' ? 20 : 12;
         lightRef.current.intensity = baseIntensity * Math.pow(1 - progress, 2.6);
       }
     }
 
-    // 2. Primary Fast Shockwave Ring
+    // 2. Brahmashira Black Hole Accretion Disk & Lensing Spin
+    if (isBrahmashira) {
+      if (accretionDiskRef.current) {
+        accretionDiskRef.current.rotation.z += 12.0 * delta;
+        const breath = 1.0 + Math.sin(elapsed * 0.008) * 0.12;
+        accretionDiskRef.current.scale.set(breath, breath, breath);
+      }
+      if (lensingRingRef.current) {
+        lensingRingRef.current.rotation.x += 4.5 * delta;
+        lensingRingRef.current.rotation.y += 3.2 * delta;
+      }
+      if (photonRingRef.current) {
+        const pPulse = 1.0 + Math.sin(elapsed * 0.02) * 0.08;
+        photonRingRef.current.scale.set(pPulse, pPulse, pPulse);
+      }
+    }
+
+    // Primary Fast Shockwave Ring
     if (ringRef.current && ringMatRef.current) {
       if (isBrahmashira) {
         ringRef.current.rotation.z += 7.5 * delta;
@@ -313,15 +333,16 @@ function SingleImpact({
       const posArray = posAttr.array as Float32Array;
 
       if (isBrahmashira) {
-        // Particles swirl INWARD toward singularity center
+        // Accelerate inward toward singularity center exponentially (Keplerian orbital spiral)
         for (let i = 0; i < sparkData.count; i++) {
           const c = sparkData.vortexCoords[i];
           if (!c) continue;
-          const curR = Math.max(0.08, c.radius * (1 - progress));
-          const curA = c.angle + c.rotSpeed * (elapsed * 0.0035);
+          const curR = Math.max(0.06, c.radius * Math.pow(1 - progress, 0.75));
+          const angularSpeed = c.rotSpeed * (2.2 / Math.max(0.35, curR));
+          const curA = c.angle + angularSpeed * (elapsed * 0.002);
 
           posArray[i * 3] = Math.cos(curA) * curR;
-          posArray[i * 3 + 1] = c.yOffset * (1 - progress);
+          posArray[i * 3 + 1] = c.yOffset * Math.pow(1 - progress, 0.85);
           posArray[i * 3 + 2] = Math.sin(curA) * curR;
         }
       } else {
@@ -350,12 +371,12 @@ function SingleImpact({
         const data = debrisData[i];
 
         if (isBrahmashira) {
-          // Debris gets sucked inward into singularity eye
-          child.position.lerp(new THREE.Vector3(0, 0, 0), delta * 2.8);
-          child.rotation.x += data.rotSpeed.x * delta * 2;
-          child.rotation.y += data.rotSpeed.y * delta * 2;
-          child.rotation.z += data.rotSpeed.z * delta * 2;
-          const shrink = Math.max(0.01, 1 - progress);
+          // Debris gets sucked inward into singularity eye and disappears!
+          child.position.lerp(new THREE.Vector3(0, 0, 0), delta * 3.5);
+          child.rotation.x += data.rotSpeed.x * delta * 3;
+          child.rotation.y += data.rotSpeed.y * delta * 3;
+          child.rotation.z += data.rotSpeed.z * delta * 3;
+          const shrink = Math.max(0.001, Math.pow(1 - progress, 1.8));
           child.scale.setScalar(data.scale * shrink);
         } else {
           // Space microgravity tumble
@@ -415,20 +436,84 @@ function SingleImpact({
         </mesh>
       )}
 
-      {/* Cosmic Singularity Void Core (Black Hole Eye for Brahmashira) */}
+      {/* Cosmic Singularity Void Core (Astrophysical Kerr Black Hole for Brahmashira) */}
       {isBrahmashira ? (
         <group quaternion={normalQuat}>
+          {/* 1. Pure Pitch-Black Void Sphere (Event Horizon, radius 1.35) */}
           <mesh>
-            <sphereGeometry args={[0.55, 24, 24]} />
-            <meshBasicMaterial color="#050010" />
+            <sphereGeometry args={[1.35, 36, 36]} />
+            <meshBasicMaterial color="#000000" depthWrite={true} />
           </mesh>
-          <mesh rotation={[0.4, 0.2, 0]}>
-            <ringGeometry args={[0.7, 3.2, 32]} />
+
+          {/* 2. Brilliant Razor-Sharp Photon Sphere Boundary Ring */}
+          <mesh ref={photonRingRef}>
+            <ringGeometry args={[1.34, 1.55, 64]} />
+            <meshBasicMaterial
+              color="#ffffff"
+              transparent
+              opacity={0.95}
+              side={THREE.DoubleSide}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 3. Primary Massive Equatorial Accretion Disk (radius 6.8 units) */}
+          <mesh ref={accretionDiskRef} rotation={[0.45, 0.2, 0]}>
+            <ringGeometry args={[1.45, 6.8, 64]} />
             <meshBasicMaterial
               color="#ec4899"
               transparent
+              opacity={0.85}
+              side={THREE.DoubleSide}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 4. Secondary Gravitational Lensing Halo (Warped Arcing Ring) */}
+          <mesh ref={lensingRingRef} rotation={[Math.PI * 0.45, 0, 0.35]}>
+            <ringGeometry args={[1.4, 5.2, 64]} />
+            <meshBasicMaterial
+              color="#818cf8"
+              transparent
               opacity={0.65}
               side={THREE.DoubleSide}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 5. Deep Cosmic Violet Outer Disk Fringe (radius 8.5 units) */}
+          <mesh rotation={[-0.3, 0.45, 0]}>
+            <ringGeometry args={[1.5, 8.5, 64]} />
+            <meshBasicMaterial
+              color="#c084fc"
+              transparent
+              opacity={0.4}
+              side={THREE.DoubleSide}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 6. Dual Relativistic Polar Plasma Jets */}
+          <mesh position={[0, 0, 2.2]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.08, 0.55, 4.4, 16]} />
+            <meshBasicMaterial
+              color="#f472b6"
+              transparent
+              opacity={0.65}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+          <mesh position={[0, 0, -2.2]} rotation={[-Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.08, 0.55, 4.4, 16]} />
+            <meshBasicMaterial
+              color="#38bdf8"
+              transparent
+              opacity={0.65}
               blending={THREE.AdditiveBlending}
               depthWrite={false}
             />

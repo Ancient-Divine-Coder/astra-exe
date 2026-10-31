@@ -266,31 +266,46 @@ function MountainPiece({
           if (dist < v.radius && dist > 0.05) {
             const invDist = 1 / dist;
             const progress = age / v.duration;
-            const pullForce = v.strength * Math.pow(1 - progress, 0.4);
-            const swirlForce = 24 * (1 - progress);
+            // Gravitational pull accelerates exponentially toward event horizon
+            const pullForce = (v.strength / Math.max(0.6, dist * 0.45)) * Math.pow(1 - progress, 0.4);
+            const swirlForce = 28 * (1 - progress);
 
             const fx = (dx * invDist) * pullForce + (-dz * invDist) * swirlForce;
-            const fy = (dy * invDist) * pullForce + 10.5 * (1 - progress);
+            const fy = (dy * invDist) * pullForce + 11.5 * (1 - progress);
             const fz = (dz * invDist) * pullForce + (dx * invDist) * swirlForce;
 
             const vel = rbRef.current.linvel();
             rbRef.current.setLinvel(
               {
-                x: vel.x * 0.91 + fx * delta,
-                y: vel.y * 0.91 + fy * delta,
-                z: vel.z * 0.91 + fz * delta,
+                x: vel.x * 0.88 + fx * delta,
+                y: vel.y * 0.88 + fy * delta,
+                z: vel.z * 0.88 + fz * delta,
               },
               true
             );
 
             rbRef.current.applyTorqueImpulse(
               {
-                x: -dz * 0.06,
-                y: 0.22,
-                z: dx * 0.06,
+                x: -dz * 0.12,
+                y: 0.35,
+                z: dx * 0.12,
               },
               true
             );
+
+            // Gravitational Spaghettification & Devouring into the Singularity:
+            // As pieces approach the event horizon, they stretch, shrink, and vanish!
+            if (dist < 3.2 && meshRef.current) {
+              const shrink = Math.max(0.01, (dist - 0.7) / 2.5);
+              meshRef.current.scale.set(shrink, shrink, shrink);
+
+              // If piece crosses event horizon (dist <= 0.85), it is fully devoured!
+              if (dist <= 0.85 && !isDespawningRef.current) {
+                isDespawningRef.current = true;
+                onDespawn?.(config.id);
+                return;
+              }
+            }
           }
         }
       }
@@ -660,13 +675,22 @@ export function DestructibleMountain({
       const astraConf = ASTRA_CONFIGS[astraType] || ASTRA_CONFIGS.astral;
 
       if (astraType === 'brahmashira') {
+        const vortexRadius =
+          materialType === 'Iron'
+            ? 3.8
+            : materialType === 'Basalt'
+            ? 4.5
+            : materialType === 'DuctileRock'
+            ? 5.0
+            : 5.6;
+
         const newVortex: ActiveVortex = {
           id: Date.now() + Math.random(),
           center: contactPos,
           startTime: performance.now(),
-          duration: 2500,
-          radius: 11.5,
-          strength: 58,
+          duration: 3200, // 3.2s sustained singularity event
+          radius: vortexRadius,
+          strength: 65,
         };
         setVortices((prev) => [...prev, newVortex]);
       }
@@ -680,21 +704,49 @@ export function DestructibleMountain({
         next.set(id, directImpulse);
 
         if (astraType === 'brahmashira') {
+          const vortexRadius =
+            materialType === 'Iron'
+              ? 3.8
+              : materialType === 'Basalt'
+              ? 4.5
+              : materialType === 'DuctileRock'
+              ? 5.0
+              : 5.6;
+
+          const candidates: { piece: FracturedPieceConfig; dist: number }[] = [];
           pieces.forEach((p) => {
-            if (!next.has(p.id)) {
+            if (!next.has(p.id) && !p.isCore) {
               const dx = p.position[0] - contactPos[0];
               const dy = p.position[1] - contactPos[1];
               const dz = p.position[2] - contactPos[2];
               const dist = Math.hypot(dx, dy, dz);
-              if (dist < 11.5) {
-                const invDist = Math.max(0.1, dist);
-                next.set(p.id, [
-                  -(dx / invDist) * 2,
-                  -(dy / invDist) * 1.5 + 1.2,
-                  -(dz / invDist) * 2,
-                ]);
+              if (dist <= vortexRadius) {
+                candidates.push({ piece: p, dist });
               }
             }
+          });
+
+          candidates.sort((a, b) => a.dist - b.dist);
+          const maxPulled =
+            materialType === 'Iron'
+              ? 5
+              : materialType === 'Basalt'
+              ? 7
+              : materialType === 'DuctileRock'
+              ? 8
+              : 10;
+          const pulled = candidates.slice(0, maxPulled);
+
+          pulled.forEach(({ piece: p }) => {
+            const dx = p.position[0] - contactPos[0];
+            const dy = p.position[1] - contactPos[1];
+            const dz = p.position[2] - contactPos[2];
+            const dist = Math.max(0.1, Math.hypot(dx, dy, dz));
+            next.set(p.id, [
+              -(dx / dist) * 2.5,
+              -(dy / dist) * 2.0 + 1.2,
+              -(dz / dist) * 2.5,
+            ]);
           });
         } else {
           // Standard / Agni / Vayu explosive dislodge
