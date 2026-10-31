@@ -122,6 +122,12 @@ function SingleImpact({
   const energyWaveMat1 = useRef<THREE.MeshBasicMaterial>(null);
   const energyWaveRef2 = useRef<THREE.Mesh>(null);
   const energyWaveMat2 = useRef<THREE.MeshBasicMaterial>(null);
+  const agniCoreRef = useRef<THREE.Mesh>(null);
+  const agniCoreMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const agniFireMantleRef = useRef<THREE.Mesh>(null);
+  const agniFireMantleMatRef = useRef<THREE.MeshStandardMaterial>(null);
+  const agniBlastWaveRef = useRef<THREE.Mesh>(null);
+  const agniBlastWaveMatRef = useRef<THREE.MeshBasicMaterial>(null);
 
   const astraType = event.astraType || 'astral';
   const astraConf = ASTRA_CONFIGS[astraType] || ASTRA_CONFIGS.astral;
@@ -132,7 +138,7 @@ function SingleImpact({
   const duration = event.isCore
     ? 1100
     : astraType === 'agni'
-    ? 950
+    ? 1200 // Extended thermonuclear explosion lifecycle
     : isBrahmashira
     ? 3500 // 3.5s dramatic singularity event
     : 750; // ms
@@ -149,7 +155,7 @@ function SingleImpact({
   const sparkData = useMemo(() => {
     let count = matFX.sparkBaseCount;
     if (event.isCore) count = Math.round(count * 1.5);
-    if (astraType === 'agni') count = Math.round(count * 1.4);
+    if (astraType === 'agni') count = Math.round(matFX.sparkBaseCount * 2.2); // ~170-190 solar blast sparks and incandescent embers
     else if (isBrahmashira) count = 160; // Dense swirling gravitational accretion particle cloud
     else if (astraType === 'vayu') count = Math.round(count * 1.2);
 
@@ -191,12 +197,11 @@ function SingleImpact({
         positions[i * 3 + 2] = 0;
 
         // Space Simulator Hypervelocity Inverted Conical Ejecta Curtain:
-        // Ejecta expands at an angle ~coneAngleRad from the impact surface normal
         const azimuth = Math.random() * Math.PI * 2;
-        const jitter = (Math.random() - 0.5) * matFX.coneJitter;
-        const elevation = Math.max(0.15, coneAngleRad + jitter);
+        const jitter = (Math.random() - 0.5) * (astraType === 'agni' ? 0.7 : matFX.coneJitter);
+        const elevation = Math.max(0.12, coneAngleRad + jitter);
 
-        // Direction along conical sheet
+        // Direction along conical sheet / spherical explosive starburst for Agni
         const radialDir = new THREE.Vector3()
           .addScaledVector(tangent, Math.cos(azimuth))
           .addScaledVector(bitangent, Math.sin(azimuth));
@@ -206,15 +211,27 @@ function SingleImpact({
           .addScaledVector(radialDir, Math.cos(elevation))
           .normalize();
 
-        const speedMult = astraType === 'vayu' ? 1.7 : astraType === 'agni' ? 1.3 : 1.0;
-        const baseSpeed = (event.isCore ? 18 : 12) + Math.random() * (event.isCore ? 20 : 14);
+        const speedMult = astraType === 'vayu' ? 1.7 : astraType === 'agni' ? 1.95 : 1.0;
+        const baseSpeed = (event.isCore ? 18 : 12) + Math.random() * (event.isCore ? 20 : 16);
         velocities.push(dir.multiplyScalar(baseSpeed * speedMult));
       }
 
-      // Material-specific color mixing with Astra energy tint
-      const r = Math.random();
-      const mixed = r < 0.4 ? c1.clone() : r < 0.75 ? c2.clone() : c3.clone();
-      mixed.lerp(astraGlow, 0.35);
+      // Material-specific color mixing or white-hot solar incandescent explosion palette for Agni
+      let mixed: THREE.Color;
+      if (astraType === 'agni') {
+        const rand = Math.random();
+        mixed = rand < 0.35
+          ? new THREE.Color('#ffffff')
+          : rand < 0.65
+          ? new THREE.Color('#fef08a')
+          : rand < 0.85
+          ? new THREE.Color('#f97316')
+          : new THREE.Color('#ef4444');
+      } else {
+        const r = Math.random();
+        mixed = r < 0.4 ? c1.clone() : r < 0.75 ? c2.clone() : c3.clone();
+        mixed.lerp(astraGlow, 0.35);
+      }
 
       colors[i * 3] = mixed.r;
       colors[i * 3 + 1] = mixed.g;
@@ -286,9 +303,37 @@ function SingleImpact({
       if (isBrahmashira) {
         const pulse = 1.0 + Math.sin(elapsed * 0.015) * 0.35;
         lightRef.current.intensity = 26 * (1 - progress * 0.6) * pulse;
+      } else if (astraType === 'agni') {
+        // Blinding Thermonuclear Solar Detonation Flash
+        lightRef.current.intensity = (event.isCore ? 52 : 44) * Math.pow(1 - progress, 2.0);
       } else {
-        const baseIntensity = event.isCore ? 22 : astraType === 'agni' ? 20 : 12;
+        const baseIntensity = event.isCore ? 22 : 12;
         lightRef.current.intensity = baseIntensity * Math.pow(1 - progress, 2.6);
+      }
+    }
+
+    // 2. Agni Astra Thermonuclear Solar Fireball Animations
+    if (astraType === 'agni') {
+      if (agniCoreRef.current && agniCoreMatRef.current) {
+        const cFactor = progress < 0.28
+          ? Math.pow(progress / 0.28, 0.4) * 3.8
+          : 3.8 + (progress - 0.28) * 1.6;
+        agniCoreRef.current.scale.set(cFactor, cFactor, cFactor);
+        agniCoreMatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.8));
+      }
+      if (agniFireMantleRef.current && agniFireMantleMatRef.current) {
+        const mFactor = progress < 0.36
+          ? Math.pow(progress / 0.36, 0.45) * 5.6
+          : 5.6 + (progress - 0.36) * 2.4;
+        agniFireMantleRef.current.scale.set(mFactor, mFactor, mFactor);
+        agniFireMantleRef.current.rotation.y += 2.8 * delta;
+        agniFireMantleRef.current.rotation.z += 1.9 * delta;
+        agniFireMantleMatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.2) * 0.9);
+      }
+      if (agniBlastWaveRef.current && agniBlastWaveMatRef.current) {
+        const wScale = 0.5 + Math.pow(progress, 0.55) * 9.5;
+        agniBlastWaveRef.current.scale.set(wScale, wScale, wScale);
+        agniBlastWaveMatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.6) * 0.95);
       }
     }
 
@@ -564,8 +609,54 @@ function SingleImpact({
             />
           </mesh>
         </group>
+      ) : astraType === 'agni' ? (
+        /* Agni Astra Thermonuclear Solar Detonation Explosion */
+        <group quaternion={normalQuat}>
+          {/* 1. White-Hot Incandescent Solar Core Sphere */}
+          <mesh ref={agniCoreRef} position={[0, 0, 0.2]}>
+            <sphereGeometry args={[0.95, 28, 28]} />
+            <meshBasicMaterial
+              ref={agniCoreMatRef}
+              color="#fffbeb"
+              transparent
+              opacity={1}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 2. Turbulent Outer Fireball Flame Mantle */}
+          <mesh ref={agniFireMantleRef} position={[0, 0, 0.35]}>
+            <dodecahedronGeometry args={[1.3, 1]} />
+            <meshStandardMaterial
+              ref={agniFireMantleMatRef}
+              color="#f97316"
+              emissive="#dc2626"
+              emissiveIntensity={4.2}
+              transparent
+              opacity={0.88}
+              roughness={0.5}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 3. Expanding Scorching Secondary Blast Wave Ring */}
+          <mesh ref={agniBlastWaveRef}>
+            <ringGeometry args={[0.85, 1.55, 48]} />
+            <meshBasicMaterial
+              ref={agniBlastWaveMatRef}
+              color="#f97316"
+              transparent
+              opacity={0.9}
+              side={THREE.DoubleSide}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+        </group>
       ) : (
-        /* Inner High-Energy Core Flash */
+        /* Inner High-Energy Core Flash for Astral/Vayu */
         <mesh quaternion={normalQuat}>
           <circleGeometry args={[0.45, 24]} />
           <meshBasicMaterial

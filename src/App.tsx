@@ -40,7 +40,7 @@ export default function App() {
     setImpacts((prev) => [...prev.slice(-20), newImpact]);
 
     // Trigger dynamic seismic camera shake based on impact severity and Astra type
-    const astraMultiplier = data.astraType === 'agni' ? 1.6 : data.astraType === 'brahmashira' ? 1.35 : 1.0;
+    const astraMultiplier = data.astraType === 'agni' ? 2.3 : data.astraType === 'brahmashira' ? 1.4 : 1.0;
     const traumaAmount = (data.isCore ? 0.95 : 0.42 * (data.intensity || 1.0)) * astraMultiplier;
     cameraShakeRef.current?.addTrauma(Math.min(1.0, traumaAmount));
   }, []);

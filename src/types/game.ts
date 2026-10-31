@@ -208,11 +208,11 @@ export const ASTRA_CONFIGS: Record<AstraType, AstraConfig> = {
     subtitle: 'Solar Explosive',
     color: '#f97316',
     accentColor: '#dc2626',
-    description: 'Heavy explosive detonation that blasts outer rock armor outward.',
+    description: 'Heavy explosive detonation that blasts outer rock armor outward with thermonuclear solar heat.',
     hotkey: '2',
     speedMultiplier: 0.95,
-    blastRadiusMultiplier: 2.2,
-    impulseMultiplier: 2.6,
+    blastRadiusMultiplier: 2.8,
+    impulseMultiplier: 3.5,
   },
   vayu: {
     id: 'vayu',
@@ -295,24 +295,24 @@ export function calculateArrowImpactDamage(
 
   // Elemental Astra Multipliers:
   if (materialProfile.name === 'Crystal') {
-    // Crystal (Mohs 9+, Brittle): Shatters violently to Agni thermal shock; deflects Vayu
-    if (astraType === 'agni') finalDamage *= 3.4;
+    // Crystal (Mohs 9+, Brittle): Catastrophically shatters to Agni thermal shock
+    if (astraType === 'agni') finalDamage *= 3.8;
     else if (astraType === 'vayu') finalDamage *= 0.55;
     else if (astraType === 'brahmashira') finalDamage *= 1.65;
   } else if (materialProfile.name === 'Iron-Core') {
-    // Iron (Ultra-Dense Matrix): High yield strength; softened by Agni thermal heat; glances Astral
-    if (astraType === 'agni') finalDamage *= 2.3;
+    // Iron (Ultra-Dense Matrix): Thermally softened & ruptured by Agni solar heat
+    if (astraType === 'agni') finalDamage *= 2.9;
     else if (astraType === 'vayu') finalDamage *= 1.25;
     else if (astraType === 'astral') finalDamage *= 0.70;
     else if (astraType === 'brahmashira') finalDamage *= 1.45;
   } else if (materialProfile.name === 'Ductile-Stone') {
-    // Ductile Stone (Sedimentary Sandstone): Absorbs blast, sheared by hyper-velocity Vayu
+    // Ductile Stone (Sedimentary Sandstone): Sheared by hyper-velocity Vayu; blasted by Agni
     if (astraType === 'vayu') finalDamage *= 2.1;
-    else if (astraType === 'agni') finalDamage *= 1.1;
+    else if (astraType === 'agni') finalDamage *= 2.2;
     else if (astraType === 'brahmashira') finalDamage *= 1.55;
   } else if (materialProfile.name === 'Basalt') {
-    // Basalt (Solid Magma Bedrock): Heavy armor, blasted by Agni
-    if (astraType === 'agni') finalDamage *= 2.4;
+    // Basalt (Solid Magma Bedrock): Heavy armor shattered by Agni thermal spallation
+    if (astraType === 'agni') finalDamage *= 3.2;
     else if (astraType === 'vayu') finalDamage *= 1.35;
     else if (astraType === 'brahmashira') finalDamage *= 1.50;
   }
