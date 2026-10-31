@@ -152,11 +152,14 @@ export function GameHUD({
             currentHealth: 680,
             selectedMaterial: selectedMaterial,
           };
+          const isFullyDestroyed = stats.totalPieces > 0 && stats.dislodgedPieces >= stats.totalPieces;
+          const displayHealth = isFullyDestroyed ? 0 : health.currentHealth;
           const healthPercent = Math.max(
             0,
-            Math.min(100, Math.round((health.currentHealth / health.maxHealth) * 100))
+            Math.min(100, Math.round((displayHealth / health.maxHealth) * 100))
           );
           const showRecentDmg =
+            !isFullyDestroyed &&
             !!health.lastDamageTaken &&
             performance.now() - (health.lastDamageTime || 0) < 1800;
 
@@ -165,11 +168,11 @@ export function GameHUD({
               style={{
                 background: 'rgba(15, 23, 42, 0.88)',
                 backdropFilter: 'blur(14px)',
-                border: `1px solid ${currentMaterial.themeColor}55`,
+                border: `1px solid ${isFullyDestroyed ? '#ef4444' : currentMaterial.themeColor}55`,
                 borderRadius: '12px',
                 padding: '12px 18px',
                 minWidth: '260px',
-                boxShadow: `0 8px 32px rgba(0, 0, 0, 0.55), 0 0 16px ${currentMaterial.themeColor}20`,
+                boxShadow: `0 8px 32px rgba(0, 0, 0, 0.55), 0 0 16px ${isFullyDestroyed ? '#ef4444' : currentMaterial.themeColor}20`,
                 transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
                 pointerEvents: 'auto',
               }}
@@ -186,12 +189,12 @@ export function GameHUD({
                   <span
                     style={{
                       fontSize: '11px',
-                      color: '#94a3b8',
+                      color: isFullyDestroyed ? '#ef4444' : '#94a3b8',
                       fontWeight: 700,
                       letterSpacing: '0.8px',
                     }}
                   >
-                    MOUNTAIN HEALTH
+                    {isFullyDestroyed ? 'MOUNTAIN DESTROYED' : 'MOUNTAIN HEALTH'}
                   </span>
                   {showRecentDmg && (
                     <span
@@ -208,19 +211,37 @@ export function GameHUD({
                       -{health.lastDamageTaken} DMG
                     </span>
                   )}
+                  {isFullyDestroyed && (
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        color: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                        border: '1px solid #ef4444',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      CRUMBLED
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: '14px', fontWeight: 800 }}>
                   <span
                     style={{
                       color:
-                        healthPercent > 50
+                        displayHealth === 0
+                          ? '#ef4444'
+                          : healthPercent > 50
                           ? currentMaterial.themeColor
                           : healthPercent > 25
                           ? '#f59e0b'
                           : '#ef4444',
                     }}
                   >
-                    {health.currentHealth}
+                    {displayHealth}
                   </span>
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
                     {' '}/ {health.maxHealth} HP

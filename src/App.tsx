@@ -58,7 +58,14 @@ export default function App() {
   const handleResetMountain = useCallback(() => {
     setResetTrigger((prev) => prev + 1);
     setImpacts([]);
-  }, []);
+    setMountainStats((prev) => ({
+      ...prev,
+      dislodgedPieces: 0,
+      activePieces: prev.totalPieces,
+      coreIntact: true,
+      health: initializeMountainHealth(mountainMaterial),
+    }));
+  }, [mountainMaterial]);
 
   const handleToggleTrajectory = useCallback(() => {
     setShowTrajectory((prev) => !prev);

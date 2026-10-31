@@ -681,12 +681,12 @@ export function DestructibleMountain({
 
         if (astraType === 'brahmashira') {
           pieces.forEach((p) => {
-            if (!next.has(p.id) && !p.isCore) {
+            if (!next.has(p.id)) {
               const dx = p.position[0] - contactPos[0];
               const dy = p.position[1] - contactPos[1];
               const dz = p.position[2] - contactPos[2];
               const dist = Math.hypot(dx, dy, dz);
-              if (dist < 10.5) {
+              if (dist < 11.5) {
                 const invDist = Math.max(0.1, dist);
                 next.set(p.id, [
                   -(dx / invDist) * 2,
@@ -696,43 +696,62 @@ export function DestructibleMountain({
               }
             }
           });
-          return next;
+        } else {
+          // Standard / Agni / Vayu explosive dislodge
+          const isCrystal = materialType === 'Crystal';
+          const isDuctile = materialType === 'DuctileRock';
+          const baseRadius = 5.2;
+          const blastRadius =
+            baseRadius *
+            astraConf.blastRadiusMultiplier *
+            (isCrystal && astraType === 'agni' ? 1.3 : isDuctile && astraType === 'agni' ? 0.75 : 1.0);
+
+          const shatterChance =
+            astraType === 'agni'
+              ? (isCrystal ? 0.92 : isDuctile ? 0.35 : 0.80)
+              : astraType === 'vayu'
+              ? (isCrystal ? 0.20 : isDuctile ? 0.65 : 0.45)
+              : 0.45;
+
+          pieces.forEach((p) => {
+            if (!next.has(p.id) && !p.isCore) {
+              const dx = p.position[0] - contactPos[0];
+              const dy = p.position[1] - contactPos[1];
+              const dz = p.position[2] - contactPos[2];
+              const dist = Math.hypot(dx, dy, dz);
+
+              if (dist < blastRadius && Math.random() < shatterChance) {
+                const invDist = Math.max(0.2, dist);
+                const push = (18 / invDist) * astraConf.impulseMultiplier;
+                const radialImpulse: [number, number, number] = [
+                  (dx / invDist) * push,
+                  (dy / invDist) * push + (astraType === 'agni' ? 10 : 5),
+                  (dz / invDist) * push - 10,
+                ];
+                next.set(p.id, radialImpulse);
+              }
+            }
+          });
         }
 
-        // Standard / Agni / Vayu explosive dislodge
-        const isCrystal = materialType === 'Crystal';
-        const isDuctile = materialType === 'DuctileRock';
-        const baseRadius = 5.2;
-        const blastRadius =
-          baseRadius *
-          astraConf.blastRadiusMultiplier *
-          (isCrystal && astraType === 'agni' ? 1.3 : isDuctile && astraType === 'agni' ? 0.75 : 1.0);
+        // Tightly couple health pool to physical fragment count:
+        // As mountain pieces are dislodged or sucked into singularity, health pool proportionately drains!
+        const total = pieces.length;
+        const dislodgedCount = next.size;
+        const remainingRatio = total > 0 ? Math.max(0, (total - dislodgedCount) / total) : 0;
 
-        const shatterChance =
-          astraType === 'agni'
-            ? (isCrystal ? 0.92 : isDuctile ? 0.35 : 0.80)
-            : astraType === 'vayu'
-            ? (isCrystal ? 0.20 : isDuctile ? 0.65 : 0.45)
-            : 0.45;
+        setHealthState((hPrev) => {
+          const physicalCap = Math.round(hPrev.maxHealth * remainingRatio);
+          const newHealth = dislodgedCount >= total ? 0 : Math.min(hPrev.currentHealth, physicalCap);
+          const dmgDealt = Math.max(0, hPrev.currentHealth - newHealth);
 
-        pieces.forEach((p) => {
-          if (!next.has(p.id) && !p.isCore) {
-            const dx = p.position[0] - contactPos[0];
-            const dy = p.position[1] - contactPos[1];
-            const dz = p.position[2] - contactPos[2];
-            const dist = Math.hypot(dx, dy, dz);
-
-            if (dist < blastRadius && Math.random() < shatterChance) {
-              const invDist = Math.max(0.2, dist);
-              const push = (18 / invDist) * astraConf.impulseMultiplier;
-              const radialImpulse: [number, number, number] = [
-                (dx / invDist) * push,
-                (dy / invDist) * push + (astraType === 'agni' ? 10 : 5),
-                (dz / invDist) * push - 10,
-              ];
-              next.set(p.id, radialImpulse);
-            }
-          }
+          if (newHealth === hPrev.currentHealth) return hPrev;
+          return {
+            ...hPrev,
+            currentHealth: newHealth,
+            lastDamageTaken: dmgDealt > 0 ? dmgDealt : hPrev.lastDamageTaken,
+            lastDamageTime: dmgDealt > 0 ? performance.now() : hPrev.lastDamageTime,
+          };
         });
 
         return next;
@@ -754,13 +773,23 @@ export function DestructibleMountain({
     const total = pieces.length;
     const dislodged = dislodgedMap.size;
     const coreIntact = !dislodgedMap.has('celestial_core');
+    const remainingRatio = total > 0 ? Math.max(0, (total - dislodged) / total) : 0;
+    const physicalCap = Math.round(healthState.maxHealth * remainingRatio);
+
+    // Guaranteed: If the mountain is fully dislodged, health is ALWAYS 0!
+    const effectiveCurrent = dislodged >= total || total === 0 ? 0 : Math.min(healthState.currentHealth, physicalCap);
+
+    const syncedHealth: MountainHealthState = {
+      ...healthState,
+      currentHealth: effectiveCurrent,
+    };
 
     onStatsChange?.({
       totalPieces: total,
-      activePieces: total - dislodged,
+      activePieces: Math.max(0, total - dislodged),
       dislodgedPieces: dislodged,
       coreIntact,
-      health: healthState,
+      health: syncedHealth,
     });
   }, [pieces.length, dislodgedMap, onStatsChange, healthState]);
 
