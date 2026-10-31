@@ -9,9 +9,11 @@ import { CelestialBow } from './components/CelestialBow';
 import { ImpactFX } from './components/ImpactFX';
 import { CameraShakeRig, type CameraShakeHandle } from './components/CameraShakeRig';
 import { GameHUD } from './components/GameHUD';
-import type { MountainStats, ImpactEvent } from './types/game';
+import type { MountainStats, ImpactEvent, AstraType, MountainMaterialType } from './types/game';
 
 export default function App() {
+  const [selectedAstra, setSelectedAstra] = useState<AstraType>('astral');
+  const [mountainMaterial, setMountainMaterial] = useState<MountainMaterialType>('Basalt');
   const [isAiming, setIsAiming] = useState(false);
   const [drawPower, setDrawPower] = useState(0);
   const [showTrajectory, setShowTrajectory] = useState(true);
@@ -35,9 +37,10 @@ export default function App() {
     };
     setImpacts((prev) => [...prev.slice(-20), newImpact]);
 
-    // Trigger dynamic seismic camera shake based on impact severity
-    const traumaAmount = data.isCore ? 0.95 : 0.42 * (data.intensity || 1.0);
-    cameraShakeRef.current?.addTrauma(traumaAmount);
+    // Trigger dynamic seismic camera shake based on impact severity and Astra type
+    const astraMultiplier = data.astraType === 'agni' ? 1.6 : data.astraType === 'brahmashira' ? 1.35 : 1.0;
+    const traumaAmount = (data.isCore ? 0.95 : 0.42 * (data.intensity || 1.0)) * astraMultiplier;
+    cameraShakeRef.current?.addTrauma(Math.min(1.0, traumaAmount));
   }, []);
 
   const handleBowFire = useCallback((powerRatio: number) => {
@@ -72,7 +75,7 @@ export default function App() {
     >
       <Canvas
         shadows
-        camera={{ position: [0, 3.6, 8.2], fov: 56, far: 300 }}
+        camera={{ position: [0, 3.8, 8.6], fov: 56, far: 300 }}
         style={{ width: '100%', height: '100%' }}
       >
         {/* Cosmic Atmosphere, Lighting & Distant Stars */}
@@ -83,15 +86,17 @@ export default function App() {
           {/* Milestone 1: Multi-Tiered Floating Celestial Island (Player Sanctum) */}
           <CelestialIsland />
 
-          {/* Milestone 3: Destructible Mountain Floating Across the Cosmic Chasm (at Z = -45, 1.5x scale) */}
+          {/* Milestone 3: Destructible Mountain with 4 Selectable Material Profiles across the Cosmic Chasm */}
           <DestructibleMountain
-            key={`mountain_${resetTrigger}`}
+            key={`mountain_${mountainMaterial}_${resetTrigger}`}
+            materialType={mountainMaterial}
             onStatsChange={setMountainStats}
             onImpact={handleImpact}
           />
 
-          {/* Milestone 2: Celestial Bow at Island Edge (Z = 2) Shooting Across Space */}
+          {/* Milestone 2 & 5: Celestial Bow with Divine Astra Arsenal */}
           <CelestialBow
+            selectedAstra={selectedAstra}
             onDragStateChange={setIsAiming}
             onPowerChange={setDrawPower}
             showTrajectory={showTrajectory}
@@ -99,7 +104,7 @@ export default function App() {
             onFire={handleBowFire}
           />
 
-          {/* Milestone 4: High-Energy Collision & Impact FX */}
+          {/* Milestone 4 & 5: High-Energy Collision & Impact FX */}
           <ImpactFX
             impacts={impacts}
             onExpire={handleExpireImpact}
@@ -112,7 +117,7 @@ export default function App() {
         {/* Orbit Camera: Automatically disabled during bow aiming */}
         <OrbitControls
           makeDefault
-          target={[0, 2.2, -14]}
+          target={[0, 4.8, -16]}
           enabled={!isAiming}
           enableDamping
           dampingFactor={0.06}
@@ -128,6 +133,10 @@ export default function App() {
         isAiming={isAiming}
         powerPercent={drawPower}
         showTrajectory={showTrajectory}
+        selectedAstra={selectedAstra}
+        selectedMaterial={mountainMaterial}
+        onSelectAstra={setSelectedAstra}
+        onSelectMaterial={setMountainMaterial}
         onToggleTrajectory={handleToggleTrajectory}
         onResetMountain={handleResetMountain}
       />

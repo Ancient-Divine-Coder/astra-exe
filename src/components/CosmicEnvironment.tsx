@@ -22,9 +22,9 @@ export function CosmicEnvironment() {
         shadow-camera-bottom={-12}
       />
 
-      {/* Rim & Key light highlighting the distant celestial mountain */}
-      <directionalLight position={[-16, 18, -48]} intensity={1.8} color="#818cf8" />
-      <directionalLight position={[18, 14, -38]} intensity={1.4} color="#c084fc" />
+      {/* Rim & Key light highlighting the distant massive mountain at Z = -50 */}
+      <directionalLight position={[-20, 26, -55]} intensity={2.0} color="#818cf8" />
+      <directionalLight position={[22, 22, -45]} intensity={1.6} color="#c084fc" />
 
       {/* Deep Space Starfield */}
       <Stars radius={180} depth={80} count={7000} factor={4} saturation={1} fade speed={1.2} />

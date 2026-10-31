@@ -4,19 +4,21 @@ import { useFrame } from '@react-three/fiber';
 import { RigidBody, interactionGroups, useRapier } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three/rapier';
 import { ArrowEnergyTrail } from './ArrowEnergyTrail';
-import { COLLISION_GROUPS } from '../types/game';
-import type { ArrowInstance } from '../types/game';
+import { COLLISION_GROUPS, ASTRA_CONFIGS } from '../types/game';
+import type { ArrowInstance, AstraType } from '../types/game';
 
 interface CelestialBowProps {
   onDragStateChange: (dragging: boolean) => void;
   onPowerChange?: (powerPercent: number) => void;
   showTrajectory?: boolean;
+  selectedAstra?: AstraType;
   onImpact?: (impact: {
     position: [number, number, number];
     normal: [number, number, number];
     color: string;
     intensity: number;
     isCore?: boolean;
+    astraType?: AstraType;
   }) => void;
   onFire?: (powerRatio: number) => void;
 }
@@ -24,12 +26,14 @@ interface CelestialBowProps {
 // Single Physical Energy Arrow in Flight
 function Arrow({
   id,
+  type = 'astral',
   position,
   velocity,
   onImpact,
   onDestroy,
 }: {
   id: number;
+  type?: AstraType;
   position: [number, number, number];
   velocity: [number, number, number];
   onImpact?: (impact: {
@@ -38,6 +42,7 @@ function Arrow({
     color: string;
     intensity: number;
     isCore?: boolean;
+    astraType?: AstraType;
   }) => void;
   onDestroy: (id: number) => void;
 }) {
@@ -45,6 +50,8 @@ function Arrow({
   const hasImpactedRef = useRef(false);
   const isDestroyedRef = useRef(false);
   const [isImpacted, setIsImpacted] = useState(false);
+
+  const config = ASTRA_CONFIGS[type] || ASTRA_CONFIGS.astral;
 
   // Orient arrow along flight velocity
   const rotation = useMemo(() => {
@@ -54,13 +61,32 @@ function Arrow({
     return [e.x, e.y, e.z] as [number, number, number];
   }, [velocity]);
 
-  // Monitor arrow position: automatically delete once past mountain or out of range
+  const initSpeed = useMemo(() => Math.hypot(velocity[0], velocity[1], velocity[2]), [velocity]);
+  const speedRef = useRef(initSpeed);
+  const velRef = useRef<[number, number, number]>(velocity);
+
+  // Monitor arrow position: automatically delete once past mountain or out of range,
+  // and preserve real pre-collision velocity before physics solver dampens impact
   useFrame(() => {
     if (!rbRef.current || isDestroyedRef.current) return;
     try {
       const pos = rbRef.current.translation();
-      // Mountain is at Z = -45. If arrow passes Z = -68, falls below Y = -35, or flies off sideways, delete it!
-      if (pos.z < -68 || pos.y < -35 || Math.abs(pos.x) > 50 || Math.abs(pos.z) > 110) {
+      const currentLinvel = rbRef.current.linvel();
+      const currentSpeed = Math.hypot(currentLinvel.x, currentLinvel.y, currentLinvel.z);
+
+      if (currentSpeed > 15) {
+        speedRef.current = currentSpeed;
+        velRef.current = [currentLinvel.x, currentLinvel.y, currentLinvel.z];
+        rbRef.current.userData = {
+          type: 'arrow',
+          astraType: type,
+          impactSpeed: currentSpeed,
+          impactVel: velRef.current,
+        };
+      }
+
+      // Mountain is at Z = -50. If arrow passes Z = -82, falls below Y = -38, or flies off sideways, delete it!
+      if (pos.z < -82 || pos.y < -38 || Math.abs(pos.x) > 65 || Math.abs(pos.z) > 130) {
         isDestroyedRef.current = true;
         onDestroy(id);
       }
@@ -77,7 +103,7 @@ function Arrow({
 
       const otherUserData = e.other?.rigidBody?.userData as { type?: string } | undefined;
       // If it hit environment (not destructible blocks which manage their own block fracture),
-      // spawn a celestial stone impact flash!
+      // spawn a stone impact flash with this Astra's color!
       if (otherUserData?.type !== 'destructible') {
         if (rbRef.current) {
           try {
@@ -87,9 +113,10 @@ function Arrow({
             onImpact?.({
               position: [pos.x, pos.y, pos.z],
               normal: [norm.x, norm.y, norm.z],
-              color: '#38bdf8',
-              intensity: 1.0,
+              color: config.color,
+              intensity: config.impulseMultiplier,
               isCore: false,
+              astraType: type,
             });
           } catch {
             // fallback
@@ -105,7 +132,7 @@ function Arrow({
         }
       }, 60);
     },
-    [id, onDestroy, onImpact]
+    [config.color, config.impulseMultiplier, id, onDestroy, onImpact, type]
   );
 
   return (
@@ -113,7 +140,12 @@ function Arrow({
       <RigidBody
         ref={rbRef}
         name="arrow"
-        userData={{ type: 'arrow' }}
+        userData={{
+          type: 'arrow',
+          astraType: type,
+          impactSpeed: initSpeed,
+          impactVel: velocity,
+        }}
         position={position}
         rotation={rotation}
         linearVelocity={velocity}
@@ -132,9 +164,9 @@ function Arrow({
           <mesh position={[0, 0.45, 0]}>
             <coneGeometry args={[0.18, 0.7, 8]} />
             <meshStandardMaterial
-              color="#38bdf8"
-              emissive="#0284c7"
-              emissiveIntensity={2.5}
+              color={config.color}
+              emissive={config.accentColor}
+              emissiveIntensity={2.8}
               roughness={0.2}
             />
           </mesh>
@@ -143,9 +175,9 @@ function Arrow({
           <mesh position={[0, -0.3, 0]}>
             <cylinderGeometry args={[0.045, 0.045, 1.1, 8]} />
             <meshStandardMaterial
-              color="#bae6fd"
-              emissive="#38bdf8"
-              emissiveIntensity={1.6}
+              color="#ffffff"
+              emissive={config.color}
+              emissiveIntensity={1.8}
               roughness={0.3}
             />
           </mesh>
@@ -154,21 +186,21 @@ function Arrow({
           <mesh position={[0, -0.8, 0]}>
             <coneGeometry args={[0.15, 0.3, 4]} />
             <meshStandardMaterial
-              color="#0ea5e9"
-              emissive="#0284c7"
-              emissiveIntensity={2.0}
+              color={config.accentColor}
+              emissive={config.color}
+              emissiveIntensity={2.2}
             />
           </mesh>
 
           {/* Flight Point Light */}
-          <pointLight color="#38bdf8" intensity={2.5} distance={7} decay={2} />
+          <pointLight color={config.color} intensity={3.0} distance={9} decay={2} />
         </group>
       </RigidBody>
 
-      {/* Milestone 4 Point 2: Dynamic Camera-Facing Energy Trail Ribbon & Wake Embers */}
+      {/* Dynamic Camera-Facing Energy Trail Ribbon & Wake Embers */}
       <ArrowEnergyTrail
         rbRef={rbRef}
-        color="#38bdf8"
+        color={config.color}
         isImpacted={isImpacted}
       />
     </>
@@ -209,7 +241,7 @@ function StringSegment({
 }
 
 // Helper to compute tuned aim vector with deadzone and full-range vertical elevation
-function computeAimVector(dx: number, dy: number, isDragging: boolean) {
+function computeAimVector(dx: number, dy: number, isDragging: boolean, astraType: AstraType = 'astral') {
   const maxPullX = 160;
   const deadzone = 14; // Horizontal deadzone for rock-steady straight shots
 
@@ -222,16 +254,19 @@ function computeAimVector(dx: number, dy: number, isDragging: boolean) {
   }
   const aimX = -curvedX * 0.40; // Opposite-direction steer
 
-  // Pull ratio & launch speed scaled for 47-unit chasm
+  // Pull ratio & launch speed scaled for 47-unit chasm, affected by Astra speed multiplier
+  const astraConf = ASTRA_CONFIGS[astraType] || ASTRA_CONFIGS.astral;
   const pullDist = Math.hypot(dx, dy);
   const pullRatio = Math.min(1.0, Math.max(0, (pullDist - 10) / 100));
-  const forwardSpeed = 46 + pullRatio * 48; // 46 to 94 speed units across the chasm
+  const baseForwardSpeed = 46 + pullRatio * 48; // 46 to 94 speed units
+  const forwardSpeed = baseForwardSpeed * astraConf.speedMultiplier;
 
-  // Flat trajectory ballistic compensation for mountain at Z = -45:
-  const distToMountain = 47;
+  // Ballistic compensation for elevated mountain at Z = -50, Y = 10.0 (Island bow is at Y = 1.2, Z = 2)
+  const distToMountain = 52;
+  const targetElevation = (10.0 - 1.2) / distToMountain; // Line-of-sight elevation angle (~0.169 rad)
   const flightTime = distToMountain / forwardSpeed;
   const compVy = 0.5 * 9.81 * flightTime;
-  const baseElevationAngle = compVy / forwardSpeed;
+  const baseElevationAngle = targetElevation + compVy / forwardSpeed;
 
   // Full vertical elevation range:
   const userPitch = ((dy - 80) / 100) * 0.44;
@@ -251,6 +286,7 @@ export function CelestialBow({
   onDragStateChange,
   onPowerChange,
   showTrajectory = true,
+  selectedAstra = 'astral',
   onImpact,
   onFire,
 }: CelestialBowProps) {
@@ -258,6 +294,8 @@ export function CelestialBow({
   const [arrows, setArrows] = useState<ArrowInstance[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [pullOffset, setPullOffset] = useState({ x: 0, y: 0 });
+
+  const currentAstraConfig = ASTRA_CONFIGS[selectedAstra] || ASTRA_CONFIGS.astral;
 
   const handleDestroyArrow = useCallback((id: number) => {
     setArrows((prev) => prev.filter((a) => a.id !== id));
@@ -319,7 +357,7 @@ export function CelestialBow({
       };
     }
 
-    const { worldAimDir, nockDistance } = computeAimVector(dx, dy, isDragging);
+    const { worldAimDir, nockDistance } = computeAimVector(dx, dy, isDragging, selectedAstra);
 
     // Bow orientation: rotates to directly face the arrow launch direction!
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), worldAimDir);
@@ -333,13 +371,13 @@ export function CelestialBow({
       bowEuler: [e.x, e.y, e.z] as [number, number, number],
       nockPos: nock,
     };
-  }, [pullOffset, isDragging]);
+  }, [pullOffset, isDragging, selectedAstra]);
 
   // Trajectory Prediction with Physical Collision Stopping (Stops dead on surface!)
   const trajectoryData = useMemo(() => {
     if (!isDragging || !showTrajectory || pullDist <= 0.05) return null;
 
-    const { forwardSpeed, worldAimDir } = computeAimVector(pullOffset.x, pullOffset.y, true);
+    const { forwardSpeed, worldAimDir } = computeAimVector(pullOffset.x, pullOffset.y, true, selectedAstra);
 
     const p0 = new THREE.Vector3(
       worldAimDir.x * 0.4,
@@ -349,8 +387,8 @@ export function CelestialBow({
     const v0 = worldAimDir.clone().multiplyScalar(forwardSpeed);
     const g = 9.81;
 
-    // Flight time to reach mountain distance (Z ~ -55)
-    const totalFlightTime = Math.min(2.0, Math.max(0.4, (-55 - p0.z) / v0.z));
+    // Flight time to reach mountain distance (Z ~ -68 for deep mountain at Z = -50)
+    const totalFlightTime = Math.min(2.5, Math.max(0.4, (-68 - p0.z) / v0.z));
     const steps = 60;
 
     const trajectoryPoints: THREE.Vector3[] = [p0.clone()];
@@ -439,7 +477,7 @@ export function CelestialBow({
       reticleQuat,
       hasHit: !!hitPoint,
     };
-  }, [isDragging, showTrajectory, pullDist, pullOffset, world, rapier]);
+  }, [isDragging, showTrajectory, pullDist, pullOffset, selectedAstra, world, rapier]);
 
   // Fire Arrow implementation
   const fireArrow = useCallback(() => {
@@ -458,7 +496,7 @@ export function CelestialBow({
       return;
     }
 
-    const { pullRatio, forwardSpeed, worldAimDir } = computeAimVector(offset.x, offset.y, true);
+    const { pullRatio, forwardSpeed, worldAimDir } = computeAimVector(offset.x, offset.y, true, selectedAstra);
     onFire?.(pullRatio);
 
     const velocity: [number, number, number] = [
@@ -478,6 +516,7 @@ export function CelestialBow({
       ...prev,
       {
         id: Date.now() + Math.random(),
+        type: selectedAstra,
         position: spawnPosition,
         velocity,
         createdAt: Date.now(),
@@ -486,7 +525,7 @@ export function CelestialBow({
 
     setPullOffset({ x: 0, y: 0 });
     pullOffsetRef.current = { x: 0, y: 0 };
-  }, [onDragStateChange, onPowerChange]);
+  }, [onDragStateChange, onFire, onPowerChange, selectedAstra]);
 
   // Window-level pointer listeners so releasing anywhere on screen reliably fires arrow
   useEffect(() => {
@@ -567,42 +606,54 @@ export function CelestialBow({
           {/* Top Tip Gem */}
           <mesh position={topTip}>
             <sphereGeometry args={[0.09, 12, 12]} />
-            <meshStandardMaterial color="#38bdf8" emissive="#0284c7" emissiveIntensity={1.5} />
+            <meshStandardMaterial
+              color={currentAstraConfig.color}
+              emissive={currentAstraConfig.accentColor}
+              emissiveIntensity={1.8}
+            />
           </mesh>
 
           {/* Bottom Tip Gem */}
           <mesh position={bottomTip}>
             <sphereGeometry args={[0.09, 12, 12]} />
-            <meshStandardMaterial color="#38bdf8" emissive="#0284c7" emissiveIntensity={1.5} />
+            <meshStandardMaterial
+              color={currentAstraConfig.color}
+              emissive={currentAstraConfig.accentColor}
+              emissiveIntensity={1.8}
+            />
           </mesh>
 
           {/* Center Handle Grip */}
           <mesh position={[0, 0, -0.45]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.065, 0.065, 0.22, 12]} />
-            <meshStandardMaterial color="#c084fc" emissive="#7e22ce" emissiveIntensity={0.8} />
+            <meshStandardMaterial
+              color={currentAstraConfig.accentColor}
+              emissive={currentAstraConfig.color}
+              emissiveIntensity={0.8}
+            />
           </mesh>
 
           {/* Upper Bowstring: From Top Tip to Nock Dot */}
           <StringSegment
             start={topTip}
             end={nockPos}
-            color={isDragging ? '#38bdf8' : '#fbbf24'}
+            color={isDragging ? currentAstraConfig.color : '#fbbf24'}
           />
 
           {/* Lower Bowstring: From Bottom Tip to Nock Dot */}
           <StringSegment
             start={bottomTip}
             end={nockPos}
-            color={isDragging ? '#38bdf8' : '#fbbf24'}
+            color={isDragging ? currentAstraConfig.color : '#fbbf24'}
           />
 
           {/* Interactive Nock Dot in the Middle of the Arc */}
           <mesh position={nockPos} onPointerDown={handlePointerDown}>
             <sphereGeometry args={[0.13, 16, 16]} />
             <meshStandardMaterial
-              color={isDragging ? '#38bdf8' : '#f43f5e'}
-              emissive={isDragging ? '#0284c7' : '#be123c'}
-              emissiveIntensity={isDragging ? 2.5 : 1.2}
+              color={isDragging ? currentAstraConfig.color : '#f43f5e'}
+              emissive={isDragging ? currentAstraConfig.accentColor : '#be123c'}
+              emissiveIntensity={isDragging ? 2.8 : 1.2}
             />
           </mesh>
 
@@ -612,17 +663,25 @@ export function CelestialBow({
               <mesh position={[0, 0.45, 0]}>
                 <coneGeometry args={[0.14, 0.5, 8]} />
                 <meshStandardMaterial
-                  color="#38bdf8"
-                  emissive="#0284c7"
+                  color={currentAstraConfig.color}
+                  emissive={currentAstraConfig.accentColor}
                   emissiveIntensity={2.8}
                 />
               </mesh>
               <mesh position={[0, -0.2, 0]}>
                 <cylinderGeometry args={[0.035, 0.035, 0.9, 8]} />
                 <meshStandardMaterial
-                  color="#bae6fd"
-                  emissive="#38bdf8"
+                  color="#ffffff"
+                  emissive={currentAstraConfig.color}
                   emissiveIntensity={2.0}
+                />
+              </mesh>
+              <mesh position={[0, -0.7, 0]}>
+                <coneGeometry args={[0.12, 0.25, 4]} />
+                <meshStandardMaterial
+                  color={currentAstraConfig.accentColor}
+                  emissive={currentAstraConfig.color}
+                  emissiveIntensity={2.2}
                 />
               </mesh>
             </group>
@@ -642,9 +701,9 @@ export function CelestialBow({
               />
             </bufferGeometry>
             <lineBasicMaterial
-              color="#38bdf8"
+              color={currentAstraConfig.color}
               transparent
-              opacity={0.65}
+              opacity={0.75}
             />
           </line>
 
@@ -652,7 +711,7 @@ export function CelestialBow({
           {trajectoryData.beadPoints.map((pt, idx) => (
             <mesh key={`bead_${idx}`} position={pt}>
               <sphereGeometry args={[0.07, 8, 8]} />
-              <meshBasicMaterial color="#38bdf8" transparent opacity={0.8} />
+              <meshBasicMaterial color={currentAstraConfig.color} transparent opacity={0.85} />
             </mesh>
           ))}
 
@@ -661,7 +720,7 @@ export function CelestialBow({
             <mesh>
               <ringGeometry args={[0.22, 0.35, 24]} />
               <meshBasicMaterial
-                color={trajectoryData.hasHit ? '#38bdf8' : '#818cf8'}
+                color={trajectoryData.hasHit ? currentAstraConfig.color : currentAstraConfig.accentColor}
                 side={THREE.DoubleSide}
                 transparent
                 opacity={0.9}
@@ -670,7 +729,7 @@ export function CelestialBow({
             <mesh>
               <circleGeometry args={[0.08, 16]} />
               <meshBasicMaterial
-                color={trajectoryData.hasHit ? '#f43f5e' : '#38bdf8'}
+                color={trajectoryData.hasHit ? '#ffffff' : currentAstraConfig.color}
                 side={THREE.DoubleSide}
                 transparent
                 opacity={0.9}
@@ -685,6 +744,7 @@ export function CelestialBow({
         <Arrow
           key={arrow.id}
           id={arrow.id}
+          type={arrow.type}
           position={arrow.position}
           velocity={arrow.velocity}
           onImpact={onImpact}

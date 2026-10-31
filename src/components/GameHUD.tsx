@@ -1,11 +1,16 @@
 import { useEffect } from 'react';
-import type { MountainStats } from '../types/game';
+import type { MountainStats, AstraType, MountainMaterialType } from '../types/game';
+import { ASTRA_CONFIGS, MOUNTAIN_TYPES } from '../types/game';
 
 interface GameHUDProps {
   stats: MountainStats;
   isAiming: boolean;
   powerPercent: number;
   showTrajectory: boolean;
+  selectedAstra: AstraType;
+  selectedMaterial: MountainMaterialType;
+  onSelectAstra: (astra: AstraType) => void;
+  onSelectMaterial: (material: MountainMaterialType) => void;
   onToggleTrajectory: () => void;
   onResetMountain: () => void;
   onClearArrows?: () => void;
@@ -16,6 +21,10 @@ export function GameHUD({
   isAiming,
   powerPercent,
   showTrajectory,
+  selectedAstra,
+  selectedMaterial,
+  onSelectAstra,
+  onSelectMaterial,
   onToggleTrajectory,
   onResetMountain,
 }: GameHUDProps) {
@@ -25,19 +34,45 @@ export function GameHUD({
       // Ignore if user is typing in an input
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
 
-      if (e.key === 'r' || e.key === 'R') {
+      const key = e.key.toLowerCase();
+      if (key === 'r') {
         onResetMountain();
-      } else if (e.key === 't' || e.key === 'T') {
+      } else if (key === 't') {
         onToggleTrajectory();
+      } else if (key === '1') {
+        onSelectAstra('astral');
+      } else if (key === '2') {
+        onSelectAstra('agni');
+      } else if (key === '3') {
+        onSelectAstra('vayu');
+      } else if (key === '4') {
+        onSelectAstra('brahmashira');
+      } else if (key === 'b') {
+        onSelectMaterial('Basalt');
+      } else if (key === 'i') {
+        onSelectMaterial('Iron');
+      } else if (key === 'c') {
+        onSelectMaterial('Crystal');
+      } else if (key === 'd') {
+        onSelectMaterial('DuctileRock');
+      } else if (key === 'm') {
+        // Cycle to next mountain material
+        const order: MountainMaterialType[] = ['Basalt', 'Iron', 'Crystal', 'DuctileRock'];
+        const curIdx = order.indexOf(selectedMaterial);
+        const nextIdx = (curIdx + 1) % order.length;
+        onSelectMaterial(order[nextIdx]);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onResetMountain, onToggleTrajectory]);
+  }, [onResetMountain, onSelectAstra, onSelectMaterial, onToggleTrajectory, selectedMaterial]);
 
   const intactPercent = stats.totalPieces > 0
     ? Math.max(0, Math.round(((stats.totalPieces - stats.dislodgedPieces) / stats.totalPieces) * 100))
     : 100;
+
+  const currentAstra = ASTRA_CONFIGS[selectedAstra] || ASTRA_CONFIGS.astral;
+  const currentMaterial = MOUNTAIN_TYPES[selectedMaterial] || MOUNTAIN_TYPES.Basalt;
 
   return (
     <div
@@ -52,7 +87,7 @@ export function GameHUD({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        padding: '24px',
+        padding: '20px 24px',
         boxSizing: 'border-box',
         fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
         color: '#f8fafc',
@@ -71,13 +106,14 @@ export function GameHUD({
         {/* Title & Milestone Tag */}
         <div
           style={{
-            background: 'rgba(15, 23, 42, 0.8)',
+            background: 'rgba(15, 23, 42, 0.85)',
             backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(56, 189, 248, 0.25)',
+            border: `1px solid ${currentAstra.color}44`,
             borderRadius: '12px',
-            padding: '14px 20px',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(56, 189, 248, 0.1)',
+            padding: '12px 18px',
+            boxShadow: `0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px ${currentAstra.color}22`,
             pointerEvents: 'auto',
+            transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -99,30 +135,31 @@ export function GameHUD({
                 fontWeight: 700,
                 padding: '3px 8px',
                 borderRadius: '6px',
-                backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                color: '#38bdf8',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
+                backgroundColor: `${currentAstra.color}22`,
+                color: currentAstra.color,
+                border: `1px solid ${currentAstra.color}55`,
                 letterSpacing: '0.8px',
               }}
             >
-              MILESTONE 4 • IMPACT FX
+              MILESTONE 5 • DIVINE ASTRAS
             </span>
           </div>
           <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>
-            Celestial Archery • Dynamic Destruction • Collision & Impact FX
+            Active Weapon: <strong style={{ color: currentAstra.color }}>{currentAstra.name}</strong> • <span style={{ color: '#cbd5e1' }}>{currentAstra.subtitle}</span>
           </div>
         </div>
 
         {/* Mountain Telemetry Monitor */}
         <div
           style={{
-            background: 'rgba(15, 23, 42, 0.8)',
+            background: 'rgba(15, 23, 42, 0.85)',
             backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(192, 132, 252, 0.25)',
+            border: `1px solid ${currentMaterial.themeColor}44`,
             borderRadius: '12px',
-            padding: '14px 20px',
+            padding: '12px 18px',
             minWidth: '240px',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+            boxShadow: `0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px ${currentMaterial.themeColor}18`,
+            transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
             pointerEvents: 'auto',
           }}
         >
@@ -130,7 +167,7 @@ export function GameHUD({
             <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.5px' }}>
               MOUNTAIN INTEGRITY
             </span>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: intactPercent > 40 ? '#38bdf8' : '#f43f5e' }}>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: intactPercent > 40 ? currentMaterial.themeColor : '#f43f5e' }}>
               {intactPercent}%
             </span>
           </div>
@@ -151,7 +188,7 @@ export function GameHUD({
                 width: `${intactPercent}%`,
                 height: '100%',
                 background: intactPercent > 50
-                  ? 'linear-gradient(90deg, #38bdf8, #818cf8)'
+                  ? `linear-gradient(90deg, ${currentMaterial.themeColor}, ${currentMaterial.accentColor})`
                   : 'linear-gradient(90deg, #f59e0b, #ef4444)',
                 transition: 'width 0.3s ease',
               }}
@@ -160,7 +197,7 @@ export function GameHUD({
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#cbd5e1' }}>
             <span>Dislodged Fragments:</span>
-            <strong style={{ color: '#c084fc' }}>{stats.dislodgedPieces} / {stats.totalPieces}</strong>
+            <strong style={{ color: currentMaterial.themeColor }}>{stats.dislodgedPieces} / {stats.totalPieces}</strong>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#cbd5e1', marginTop: '4px' }}>
@@ -168,7 +205,7 @@ export function GameHUD({
             <span
               style={{
                 fontWeight: 700,
-                color: stats.coreIntact ? '#38bdf8' : '#f43f5e',
+                color: stats.coreIntact ? currentMaterial.themeColor : '#f43f5e',
               }}
             >
               {stats.coreIntact ? '✦ Shielded' : '⚡ BREACHED'}
@@ -177,29 +214,297 @@ export function GameHUD({
         </div>
       </div>
 
-      {/* Right-Side Power Meter Gauge when drawing bow (Unobstructed Center View!) */}
+      {/* Divine Weapon Arsenal Selector (Left-Side Dock) */}
+      <div
+        style={{
+          position: 'absolute',
+          left: '24px',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          pointerEvents: 'auto',
+          zIndex: 110,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            background: 'rgba(15, 23, 42, 0.88)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '16px',
+            padding: '12px 10px',
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.65)',
+            width: '186px',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '10px',
+              fontWeight: 800,
+              color: '#94a3b8',
+              letterSpacing: '1.2px',
+              paddingLeft: '4px',
+              marginBottom: '2px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <span>WEAPONS</span>
+            <span style={{ fontSize: '9px', opacity: 0.7 }}>KEYS [1-4]</span>
+          </div>
+
+          {Object.values(ASTRA_CONFIGS).map((astra) => {
+            const isSelected = astra.id === selectedAstra;
+            return (
+              <button
+                key={astra.id}
+                type="button"
+                onClick={() => onSelectAstra(astra.id)}
+                style={{
+                  background: isSelected
+                    ? `linear-gradient(135deg, ${astra.color}28, ${astra.accentColor}36)`
+                    : 'rgba(30, 41, 59, 0.6)',
+                  border: isSelected
+                    ? `2px solid ${astra.color}`
+                    : '1px solid rgba(148, 163, 184, 0.2)',
+                  borderRadius: '10px',
+                  padding: '9px 12px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px',
+                  transition: 'all 0.18s ease',
+                  boxShadow: isSelected
+                    ? `0 0 16px ${astra.color}44, 0 4px 12px rgba(0,0,0,0.4)`
+                    : 'none',
+                  transform: isSelected ? 'scale(1.02)' : 'scale(1.0)',
+                }}
+                onMouseOver={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.borderColor = astra.color;
+                    e.currentTarget.style.transform = 'translateX(3px)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+                    e.currentTarget.style.transform = 'scale(1.0)';
+                  }
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      backgroundColor: `${astra.color}33`,
+                      color: astra.color,
+                      padding: '2px 5px',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    [{astra.hotkey}]
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      color: isSelected ? astra.color : '#94a3b8',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {astra.id === 'agni' ? 'BLAST 2.2x' : astra.id === 'vayu' ? 'SPD 2.0x' : astra.id === 'brahmashira' ? 'VORTEX' : 'BALANCED'}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: isSelected ? '#ffffff' : '#e2e8f0',
+                    marginTop: '2px',
+                  }}
+                >
+                  {astra.name}
+                </div>
+                <div
+                  style={{
+                    fontSize: '10px',
+                    color: isSelected ? astra.color : '#94a3b8',
+                  }}
+                >
+                  {astra.subtitle}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Mountain Material Forge Selector (Right-Side Dock, Matching Weapons Dock) */}
+      <div
+        style={{
+          position: 'absolute',
+          right: '24px',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          pointerEvents: 'auto',
+          zIndex: 110,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            background: 'rgba(15, 23, 42, 0.88)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '16px',
+            padding: '12px 10px',
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.65)',
+            width: '186px',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '10px',
+              fontWeight: 800,
+              color: '#94a3b8',
+              letterSpacing: '1.2px',
+              paddingLeft: '4px',
+              marginBottom: '2px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <span>MOUNTAIN</span>
+            <span style={{ fontSize: '9px', opacity: 0.7 }}>KEYS [B-D]</span>
+          </div>
+
+          {(Object.keys(MOUNTAIN_TYPES) as MountainMaterialType[]).map((matKey) => {
+            const conf = MOUNTAIN_TYPES[matKey];
+            const isSelected = selectedMaterial === matKey;
+            const badgeTag =
+              matKey === 'Basalt'
+                ? 'ARMOR 12x'
+                : matKey === 'Iron'
+                ? 'DENSE 18x'
+                : matKey === 'Crystal'
+                ? 'BRITTLE'
+                : 'DEFORM';
+
+            return (
+              <button
+                key={matKey}
+                type="button"
+                onClick={() => onSelectMaterial(matKey)}
+                style={{
+                  background: isSelected
+                    ? `linear-gradient(135deg, ${conf.themeColor}28, ${conf.accentColor}36)`
+                    : 'rgba(30, 41, 59, 0.6)',
+                  border: isSelected
+                    ? `2px solid ${conf.themeColor}`
+                    : '1px solid rgba(148, 163, 184, 0.2)',
+                  borderRadius: '10px',
+                  padding: '9px 12px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px',
+                  transition: 'all 0.18s ease',
+                  boxShadow: isSelected
+                    ? `0 0 16px ${conf.themeColor}44, 0 4px 12px rgba(0,0,0,0.4)`
+                    : 'none',
+                  transform: isSelected ? 'scale(1.02)' : 'scale(1.0)',
+                }}
+                onMouseOver={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.borderColor = conf.themeColor;
+                    e.currentTarget.style.transform = 'translateX(-3px)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+                    e.currentTarget.style.transform = 'scale(1.0)';
+                  }
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      backgroundColor: `${conf.themeColor}33`,
+                      color: conf.themeColor,
+                      padding: '2px 5px',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    [{conf.hotkey}]
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      color: isSelected ? conf.themeColor : '#94a3b8',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {badgeTag}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: isSelected ? '#ffffff' : '#e2e8f0',
+                    marginTop: '2px',
+                  }}
+                >
+                  {conf.name.replace(' Mountain', '')}
+                </div>
+                <div
+                  style={{
+                    fontSize: '10px',
+                    color: isSelected ? conf.themeColor : '#94a3b8',
+                  }}
+                >
+                  {conf.subtitle}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Left-Adjacent Power Meter Gauge when drawing bow */}
       {isAiming && (
         <div
           style={{
             position: 'absolute',
-            right: '24px',
+            left: '222px',
             top: '50%',
             transform: 'translateY(-50%)',
             background: 'rgba(15, 23, 42, 0.88)',
             backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(56, 189, 248, 0.4)',
+            border: `1px solid ${currentAstra.color}66`,
             borderRadius: '16px',
             padding: '16px 14px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.25)',
+            boxShadow: `0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px ${currentAstra.color}33`,
             pointerEvents: 'none',
             width: '68px',
             boxSizing: 'border-box',
           }}
         >
-          <div style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 800, letterSpacing: '1px', marginBottom: '6px' }}>
+          <div style={{ fontSize: '10px', color: currentAstra.color, fontWeight: 800, letterSpacing: '1px', marginBottom: '6px' }}>
             POWER
           </div>
           <div style={{ fontSize: '16px', fontWeight: 800, color: '#f8fafc', marginBottom: '10px' }}>
@@ -223,10 +528,10 @@ export function GameHUD({
               style={{
                 width: '100%',
                 height: `${powerPercent}%`,
-                background: 'linear-gradient(0deg, #38bdf8, #c084fc, #f43f5e)',
+                background: `linear-gradient(0deg, ${currentAstra.color}, ${currentAstra.accentColor}, #ffffff)`,
                 borderRadius: '6px',
                 transition: 'height 0.05s ease',
-                boxShadow: '0 0 10px rgba(56, 189, 248, 0.8)',
+                boxShadow: `0 0 10px ${currentAstra.color}`,
               }}
             />
           </div>
@@ -249,7 +554,7 @@ export function GameHUD({
         {/* Controls Instructions */}
         <div
           style={{
-            background: 'rgba(15, 23, 42, 0.8)',
+            background: 'rgba(15, 23, 42, 0.85)',
             backdropFilter: 'blur(12px)',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '12px',
@@ -261,7 +566,8 @@ export function GameHUD({
           }}
         >
           <div>🏹 <strong style={{ color: '#e2e8f0' }}>Click & Drag Bow:</strong> Draw string backwards to aim & charge</div>
-          <div>🎯 <strong style={{ color: '#e2e8f0' }}>Release:</strong> Fire high-velocity projectile into floating mountain</div>
+          <div>🔢 <strong style={{ color: '#e2e8f0' }}>Keys [1, 2, 3, 4]:</strong> Switch Divine Astra types (Astral, Agni, Vayu, Brahmashira)</div>
+          <div>🏔️ <strong style={{ color: '#e2e8f0' }}>Keys [B, I, C, D] or [M]:</strong> Forge Mountain Material (Basalt, Iron, Crystal, Ductile)</div>
           <div>🎥 <strong style={{ color: '#e2e8f0' }}>Drag Background:</strong> Orbit camera around island</div>
         </div>
 
