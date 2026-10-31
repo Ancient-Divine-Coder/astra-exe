@@ -252,194 +252,78 @@ export function generatePlanetoidPieces(materialType: MountainMaterialType = 'Ba
     'celestial_core',
     'core',
     [0.0, centerY, centerZ],
-    [3.8, 3.8, 3.8],
+    [4.2, 4.2, 4.2],
     [0.1, 0.4, 0.2],
-    16.0,
+    18.0,
     palette.core,
     palette.coreEmissive,
-    3.4,
+    3.8,
     'crystal_shard',
     mountainMat,
     1.6,
     true
   );
 
-  // 2. Deep Mantle Asthenosphere Wedges (8 chunks at radius R * 0.52 = 7.5)
-  const mantleRadius = PLANET_RADIUS * 0.52;
-  const mColor = palette.mid;
-  const mEmissive = palette.midEmissive;
-  for (let i = 0; i < 8; i++) {
-    const angle = (i * Math.PI * 2) / 8;
-    const yOff = (i % 2 === 0 ? 1 : -1) * 2.8;
-    const px = Math.cos(angle) * mantleRadius;
-    const pz = Math.sin(angle) * mantleRadius;
-    addPiece(
-      `pl_mantle_${i}`,
-      'mid',
-      [px, centerY + yOff, centerZ + pz],
-      [4.2, 4.0, 4.2],
-      [0.15, angle, 0.1],
-      7.5,
-      mColor,
-      mEmissive,
-      0.45,
-      i % 2 === 0 ? 'boulder' : 'slab',
-      mountainMat,
-      1.1
-    );
-  }
+  // 2. Uniform Fibonacci Spherical Tectonic Crust (N = 54 interlocking hexagonal plates)
+  const N = 54;
+  const goldenAngle = 2.399963229728653; // pi * (3 - sqrt(5))
 
-  // 3. North Polar Cap (latitude 75° to 90°)
-  const pColor = palette.peak;
-  const pEmissive = palette.peakEmissive;
-  // Apex North Pole
-  addPiece(
-    'pl_north_apex',
-    'peak',
-    [0.0, centerY + PLANET_RADIUS * 0.98, centerZ],
-    [4.6, 3.8, 4.6],
-    [0.05, 0, 0.05],
-    6.5,
-    pColor,
-    pEmissive,
-    0.65,
-    'peak',
-    mountainMat,
-    0.95
-  );
+  for (let i = 0; i < N; i++) {
+    const y = 1 - (i / (N - 1)) * 2;
+    const rXZ = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = goldenAngle * i;
+    const x = Math.cos(theta) * rXZ;
+    const z = Math.sin(theta) * rXZ;
 
-  // North polar ring (4 chunks at latitude 65°)
-  const nRingRadius = PLANET_RADIUS * Math.cos((65 * Math.PI) / 180);
-  const nRingY = PLANET_RADIUS * Math.sin((65 * Math.PI) / 180);
-  for (let i = 0; i < 4; i++) {
-    const angle = (i * Math.PI * 2) / 4 + Math.PI / 4;
-    const px = Math.cos(angle) * nRingRadius;
-    const pz = Math.sin(angle) * nRingRadius;
-    addPiece(
-      `pl_np_ring_${i}`,
-      'peak',
-      [px, centerY + nRingY, centerZ + pz],
-      [4.4, 3.8, 4.4],
-      [0.2, angle, -0.1],
-      6.2,
-      pColor,
-      pEmissive,
-      0.55,
-      'boulder',
-      mountainMat,
-      0.9
-    );
-  }
+    const norm = new THREE.Vector3(x, y, z).normalize();
 
-  // 4. Northern Temperate Belt (8 chunks at latitude 38°)
-  const nTempRadius = PLANET_RADIUS * Math.cos((38 * Math.PI) / 180);
-  const nTempY = PLANET_RADIUS * Math.sin((38 * Math.PI) / 180);
-  for (let i = 0; i < 8; i++) {
-    const angle = (i * Math.PI * 2) / 8;
-    const px = Math.cos(angle) * nTempRadius;
-    const pz = Math.sin(angle) * nTempRadius;
-    addPiece(
-      `pl_ntemp_${i}`,
-      'mid',
-      [px, centerY + nTempY, centerZ + pz],
-      [4.2, 4.2, 4.2],
-      [0.25 * Math.sin(angle), angle, 0.25 * Math.cos(angle)],
-      6.8,
-      mColor,
-      mEmissive,
-      0.45,
-      i % 2 === 0 ? 'boulder' : 'slab',
-      mountainMat,
-      0.95
-    );
-  }
+    // Align local Y axis (height axis of the cylinder/plate) to point radially outwards
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), norm);
+    const e = new THREE.Euler().setFromQuaternion(q);
 
-  // 5. Equatorial Tectonic Crust Belt (14 chunks at latitude 0°)
-  const eqRadius = PLANET_RADIUS;
-  const fColor = palette.foundation;
-  const fEmissive = palette.foundationEmissive;
-  for (let i = 0; i < 14; i++) {
-    const angle = (i * Math.PI * 2) / 14;
-    const yJitter = ((i % 3) - 1) * 1.5;
-    const px = Math.cos(angle) * eqRadius;
-    const pz = Math.sin(angle) * eqRadius;
+    // Position tightly along the planetary shell radius
+    const worldPos: [number, number, number] = [
+      norm.x * PLANET_RADIUS,
+      centerY + norm.y * PLANET_RADIUS,
+      centerZ + norm.z * PLANET_RADIUS,
+    ];
+
+    const isPolar = i < 6 || i > N - 7;
+    const isEquatorial = Math.abs(y) < 0.35;
+    const tier: 'foundation' | 'mid' | 'peak' = isPolar ? 'peak' : isEquatorial ? 'foundation' : 'mid';
+
+    const color = isPolar
+      ? palette.peak
+      : isEquatorial
+      ? palette.foundation
+      : (i % 2 === 0 ? palette.mid : palette.foundation);
+
+    const emissiveColor = isPolar
+      ? palette.peakEmissive
+      : isEquatorial
+      ? palette.foundationEmissive
+      : (i % 2 === 0 ? palette.midEmissive : palette.foundationEmissive);
+
+    const emissiveIntensity = isPolar ? 0.65 : isEquatorial ? 0.35 : 0.45;
+
+    // Scale [radiusX, thicknessY, radiusZ]: 4.35 radius provides seamless beveled overlap
+    const plateScale: [number, number, number] = [4.35, 2.8, 4.35];
+
     addPiece(
-      `pl_eq_${i}`,
-      'foundation',
-      [px, centerY + yJitter, centerZ + pz],
-      [4.4, 4.4, 4.2],
-      [0.1, angle, 0],
-      7.2,
-      i % 2 === 0 ? fColor : mColor,
-      i % 2 === 0 ? fEmissive : mEmissive,
-      0.35,
-      i % 3 === 0 ? 'pillar' : i % 2 === 0 ? 'slab' : 'boulder',
+      `pl_tect_${i}`,
+      tier,
+      worldPos,
+      plateScale,
+      [e.x, e.y, e.z],
+      7.0,
+      color,
+      emissiveColor,
+      emissiveIntensity,
+      'tectonic',
       mountainMat,
       1.0
     );
   }
-
-  // 6. Southern Temperate Belt (8 chunks at latitude -38°)
-  const sTempRadius = PLANET_RADIUS * Math.cos((38 * Math.PI) / 180);
-  const sTempY = -PLANET_RADIUS * Math.sin((38 * Math.PI) / 180);
-  for (let i = 0; i < 8; i++) {
-    const angle = (i * Math.PI * 2) / 8 + Math.PI / 8;
-    const px = Math.cos(angle) * sTempRadius;
-    const pz = Math.sin(angle) * sTempRadius;
-    addPiece(
-      `pl_stemp_${i}`,
-      'foundation',
-      [px, centerY + sTempY, centerZ + pz],
-      [4.2, 4.2, 4.2],
-      [-0.25 * Math.sin(angle), angle, -0.25 * Math.cos(angle)],
-      7.0,
-      fColor,
-      fEmissive,
-      0.3,
-      i % 2 === 0 ? 'slab' : 'boulder',
-      mountainMat,
-      1.05
-    );
-  }
-
-  // 7. South Polar Ring (4 chunks at latitude -65°)
-  const sRingRadius = PLANET_RADIUS * Math.cos((65 * Math.PI) / 180);
-  const sRingY = -PLANET_RADIUS * Math.sin((65 * Math.PI) / 180);
-  for (let i = 0; i < 4; i++) {
-    const angle = (i * Math.PI * 2) / 4;
-    const px = Math.cos(angle) * sRingRadius;
-    const pz = Math.sin(angle) * sRingRadius;
-    addPiece(
-      `pl_sp_ring_${i}`,
-      'foundation',
-      [px, centerY + sRingY, centerZ + pz],
-      [4.4, 3.8, 4.4],
-      [-0.2, angle, 0.1],
-      6.8,
-      fColor,
-      fEmissive,
-      0.25,
-      'boulder',
-      mountainMat,
-      1.1
-    );
-  }
-
-  // South Pole Keystone Chunk
-  addPiece(
-    'pl_south_keystone',
-    'foundation',
-    [0.0, centerY - PLANET_RADIUS * 0.98, centerZ],
-    [4.8, 3.8, 4.8],
-    [Math.PI, 0, 0],
-    8.0,
-    fColor,
-    fEmissive,
-    0.2,
-    'peak',
-    mountainMat,
-    1.2
-  );
 
   return pieces;
 }
@@ -497,6 +381,9 @@ function MountainPiece({
         return new THREE.CylinderGeometry(0.7, 0.85, 1.2, 6);
       case 'peak':
         return new THREE.ConeGeometry(0.75, 1.4, 5);
+      case 'tectonic':
+        // Geodesic hexagonal spherical crust tile: wide hexagonal top, slightly tapered bottom
+        return new THREE.CylinderGeometry(1.0, 0.88, 0.5, 6);
       case 'slab':
       default:
         return new THREE.BoxGeometry(1, 1, 1);
@@ -846,12 +733,162 @@ function MountainPiece({
   );
 }
 
+// ============================================================================
+// Planetary Particle Cloud System (~1,400 Orbiting Cosmic Particles)
+// ============================================================================
+interface PlanetoidParticleCloudProps {
+  center: [number, number, number];
+  radius: number;
+  materialType: MountainMaterialType;
+}
+
+export function PlanetoidParticleCloud({ center, radius, materialType }: PlanetoidParticleCloudProps) {
+  const pointsRef = useRef<THREE.Points>(null);
+  const ringRef = useRef<THREE.Points>(null);
+
+  // Generate cosmic particle distributions tailored to the target material
+  const { haloPositions, haloColors, ringPositions, ringColors } = useMemo(() => {
+    // 1. Atmosphere / Ionosphere dust (850 particles)
+    const haloCount = 850;
+    const hPos = new Float32Array(haloCount * 3);
+    const hCol = new Float32Array(haloCount * 3);
+
+    let paletteHexes: string[];
+    switch (materialType) {
+      case 'Iron':
+        paletteHexes = ['#ffffff', '#fef08a', '#f59e0b', '#38bdf8', '#fbbf24'];
+        break;
+      case 'Crystal':
+        paletteHexes = ['#a78bfa', '#38bdf8', '#e0e7ff', '#f472b6', '#ffffff'];
+        break;
+      case 'DuctileRock':
+        paletteHexes = ['#f59e0b', '#d97706', '#b45309', '#fde68a', '#78350f'];
+        break;
+      case 'Basalt':
+      default:
+        paletteHexes = ['#ff4500', '#fb923c', '#ea580c', '#381124', '#fef08a'];
+        break;
+    }
+
+    const cols = paletteHexes.map((hex) => new THREE.Color(hex));
+
+    for (let i = 0; i < haloCount; i++) {
+      const u = Math.random();
+      const v = Math.random();
+      const theta = u * 2.0 * Math.PI;
+      const phi = Math.acos(2.0 * v - 1.0);
+      const r = radius * (1.02 + Math.pow(Math.random(), 1.5) * 0.42);
+
+      const sinPhi = Math.sin(phi);
+      hPos[i * 3] = r * sinPhi * Math.cos(theta);
+      hPos[i * 3 + 1] = r * Math.cos(phi);
+      hPos[i * 3 + 2] = r * sinPhi * Math.sin(theta);
+
+      const c = cols[Math.floor(Math.random() * cols.length)];
+      hCol[i * 3] = c.r;
+      hCol[i * 3 + 1] = c.g;
+      hCol[i * 3 + 2] = c.b;
+    }
+
+    // 2. Equatorial Accretion Ring / Asteroid Dust Belt (550 particles)
+    const ringCount = 550;
+    const rPos = new Float32Array(ringCount * 3);
+    const rCol = new Float32Array(ringCount * 3);
+
+    for (let i = 0; i < ringCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = radius * (1.25 + Math.random() * 0.7);
+      const ySpread = (Math.random() - 0.5) * 1.6;
+
+      rPos[i * 3] = Math.cos(angle) * dist;
+      rPos[i * 3 + 1] = ySpread;
+      rPos[i * 3 + 2] = Math.sin(angle) * dist;
+
+      const c = cols[Math.floor(Math.random() * cols.length)];
+      rCol[i * 3] = c.r;
+      rCol[i * 3 + 1] = c.g;
+      rCol[i * 3 + 2] = c.b;
+    }
+
+    return {
+      haloPositions: hPos,
+      haloColors: hCol,
+      ringPositions: rPos,
+      ringColors: rCol,
+    };
+  }, [radius, materialType]);
+
+  // Subtle orbital rotation in useFrame
+  useFrame((_, delta) => {
+    if (pointsRef.current) {
+      pointsRef.current.rotation.y += delta * 0.08;
+      pointsRef.current.rotation.x += delta * 0.02;
+    }
+    if (ringRef.current) {
+      ringRef.current.rotation.y += delta * 0.14;
+    }
+  });
+
+  return (
+    <group position={center}>
+      {/* 1. Atmospheric Stardust Swarm */}
+      <points ref={pointsRef}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            args={[haloPositions, 3]}
+          />
+          <bufferAttribute
+            attach="attributes-color"
+            args={[haloColors, 3]}
+          />
+        </bufferGeometry>
+        <pointsMaterial
+          size={0.32}
+          vertexColors
+          transparent
+          opacity={0.85}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </points>
+
+      {/* 2. Tilted Planetary Dust & Accretion Belt */}
+      <group rotation={[0.42, 0.25, -0.32]}>
+        <points ref={ringRef}>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              args={[ringPositions, 3]}
+            />
+            <bufferAttribute
+              attach="attributes-color"
+              args={[ringColors, 3]}
+            />
+          </bufferGeometry>
+          <pointsMaterial
+            size={0.38}
+            vertexColors
+            transparent
+            opacity={0.9}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </points>
+      </group>
+    </group>
+  );
+}
+
 export function DestructibleMountain({
   materialType = 'Basalt',
   level = 1,
   onStatsChange,
   onImpact,
 }: DestructibleMountainProps) {
+  const matConfig = MOUNTAIN_TYPES[materialType] || MOUNTAIN_TYPES.Basalt;
+  const palette = matConfig.palette;
+
   const pieces = useMemo(
     () => (level === 2 ? generatePlanetoidPieces(materialType) : generateMountainPieces(materialType)),
     [materialType, level]
@@ -1177,6 +1214,30 @@ export function DestructibleMountain({
 
   return (
     <group>
+      {/* For Level 2: Underlying Solid Planetary Mantle Sphere ensuring seamless rocky density */}
+      {level === 2 && (
+        <mesh position={[0, 16.0, -70]} receiveShadow>
+          <sphereGeometry args={[13.6, 36, 36]} />
+          <meshStandardMaterial
+            color={palette.foundation}
+            emissive={palette.foundationEmissive}
+            emissiveIntensity={palette.emissiveIntensityMultiplier * 0.4}
+            roughness={palette.roughness}
+            metalness={palette.metalness}
+            flatShading={false}
+          />
+        </mesh>
+      )}
+
+      {/* For Level 2: 1,400-Particle Swirling Atmosphere & Accretion Dust Ring */}
+      {level === 2 && (
+        <PlanetoidParticleCloud
+          center={[0, 16.0, -70]}
+          radius={14.5}
+          materialType={materialType}
+        />
+      )}
+
       {pieces.map((piece) => {
         if (despawnedSet.has(piece.id)) return null;
         return (

@@ -167,7 +167,7 @@ export interface FracturedPieceConfig {
   emissiveIntensity: number;
   metalness?: number;
   roughness?: number;
-  shapeType: 'boulder' | 'slab' | 'pillar' | 'crystal_shard' | 'peak';
+  shapeType: 'boulder' | 'slab' | 'pillar' | 'crystal_shard' | 'peak' | 'tectonic';
   tier: 'foundation' | 'mid' | 'peak' | 'core';
   material: MountainMaterialProfile;
   fractureThreshold?: number;
