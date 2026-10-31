@@ -193,14 +193,14 @@ export const ASTRA_CONFIGS: Record<AstraType, AstraConfig> = {
   astral: {
     id: 'astral',
     name: 'Astral Arrow',
-    subtitle: 'Standard Piercing',
+    subtitle: 'Celestial Nova Piercer',
     color: '#38bdf8',
     accentColor: '#0284c7',
-    description: 'Balanced celestial energy with pinpoint accuracy.',
+    description: 'Consecrated cyber-celestial arrow with diamond broadhead & starlight nova burst.',
     hotkey: '1',
-    speedMultiplier: 1.0,
-    blastRadiusMultiplier: 1.0,
-    impulseMultiplier: 1.0,
+    speedMultiplier: 1.15,
+    blastRadiusMultiplier: 1.05,
+    impulseMultiplier: 1.25,
   },
   agni: {
     id: 'agni',
@@ -265,6 +265,7 @@ export interface MountainHealthState {
   selectedMaterial: MountainMaterialType;
   lastDamageTaken?: number;
   lastDamageTime?: number;
+  damageType?: 'direct' | 'wave' | 'vortex';
 }
 
 export function initializeMountainHealth(materialType: MountainMaterialType): MountainHealthState {

@@ -47,6 +47,7 @@ function Arrow({
   onDestroy: (id: number) => void;
 }) {
   const rbRef = useRef<RapierRigidBody>(null);
+  const spinRingRef = useRef<THREE.Mesh>(null);
   const hasImpactedRef = useRef(false);
   const isDestroyedRef = useRef(false);
   const [isImpacted, setIsImpacted] = useState(false);
@@ -67,7 +68,10 @@ function Arrow({
 
   // Monitor arrow position: automatically delete once past mountain or out of range,
   // and preserve real pre-collision velocity before physics solver dampens impact
-  useFrame(() => {
+  useFrame((_, delta) => {
+    if (spinRingRef.current) {
+      spinRingRef.current.rotation.z += 9.5 * delta;
+    }
     if (!rbRef.current || isDestroyedRef.current) return;
     try {
       const pos = rbRef.current.translation();
@@ -160,40 +164,64 @@ function Arrow({
         onCollisionEnter={handleCollision}
       >
         <group>
-          {/* Glowing Astral Arrow Head */}
-          <mesh position={[0, 0.45, 0]}>
-            <coneGeometry args={[0.18, 0.7, 8]} />
+          {/* Faceted Celestial Diamond Broadhead Arrow Head */}
+          <mesh position={[0, 0.48, 0]}>
+            <octahedronGeometry args={[0.18, 0]} />
             <meshStandardMaterial
-              color={config.color}
-              emissive={config.accentColor}
-              emissiveIntensity={2.8}
+              color="#ffffff"
+              emissive={config.color}
+              emissiveIntensity={3.6}
+              roughness={0.12}
+              metalness={0.8}
+            />
+          </mesh>
+
+          {/* Inner Energy Lance Tip */}
+          <mesh position={[0, 0.64, 0]}>
+            <coneGeometry args={[0.07, 0.38, 6]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+
+          {/* Luminous Arrow Shaft */}
+          <mesh position={[0, -0.22, 0]}>
+            <cylinderGeometry args={[0.042, 0.042, 1.15, 8]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive={config.color}
+              emissiveIntensity={2.4}
               roughness={0.2}
             />
           </mesh>
 
-          {/* Luminous Arrow Shaft */}
-          <mesh position={[0, -0.3, 0]}>
-            <cylinderGeometry args={[0.045, 0.045, 1.1, 8]} />
-            <meshStandardMaterial
+          {/* Spinning Celestial Focus Ring / Glyph */}
+          <mesh ref={spinRingRef} position={[0, 0.15, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.16, 0.022, 12, 24]} />
+            <meshBasicMaterial
               color="#ffffff"
-              emissive={config.color}
-              emissiveIntensity={1.8}
-              roughness={0.3}
+              transparent
+              opacity={0.88}
+              blending={THREE.AdditiveBlending}
             />
           </mesh>
 
-          {/* Fletching Energy fins */}
-          <mesh position={[0, -0.8, 0]}>
-            <coneGeometry args={[0.15, 0.3, 4]} />
-            <meshStandardMaterial
-              color={config.accentColor}
-              emissive={config.color}
-              emissiveIntensity={2.2}
-            />
-          </mesh>
+          {/* Swept Celestial Rune Energy Fletchings (Tri-Fin) */}
+          <group position={[0, -0.75, 0]}>
+            <mesh position={[0.09, 0, 0]} rotation={[0, 0, -0.28]}>
+              <boxGeometry args={[0.13, 0.36, 0.02]} />
+              <meshBasicMaterial color={config.accentColor} transparent opacity={0.92} />
+            </mesh>
+            <mesh position={[-0.045, 0, 0.078]} rotation={[0, (2 * Math.PI) / 3, -0.28]}>
+              <boxGeometry args={[0.13, 0.36, 0.02]} />
+              <meshBasicMaterial color={config.accentColor} transparent opacity={0.92} />
+            </mesh>
+            <mesh position={[-0.045, 0, -0.078]} rotation={[0, (-2 * Math.PI) / 3, -0.28]}>
+              <boxGeometry args={[0.13, 0.36, 0.02]} />
+              <meshBasicMaterial color={config.accentColor} transparent opacity={0.92} />
+            </mesh>
+          </group>
 
-          {/* Flight Point Light */}
-          <pointLight color={config.color} intensity={3.0} distance={9} decay={2} />
+          {/* Flight Point Light with radiant celestial intensity */}
+          <pointLight color={config.color} intensity={4.5} distance={11} decay={2} />
         </group>
       </RigidBody>
 

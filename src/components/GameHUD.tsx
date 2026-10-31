@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { MountainStats, AstraType, MountainMaterialType } from '../types/game';
 import { ASTRA_CONFIGS, MOUNTAIN_TYPES } from '../types/game';
 
@@ -69,6 +69,28 @@ export function GameHUD({
 
   const currentAstra = ASTRA_CONFIGS[selectedAstra] || ASTRA_CONFIGS.astral;
   const currentMaterial = MOUNTAIN_TYPES[selectedMaterial] || MOUNTAIN_TYPES.Basalt;
+
+  // Track real-time health & trailing ghost damage bar
+  const health = stats.health || {
+    maxHealth: 680,
+    currentHealth: 680,
+    selectedMaterial: selectedMaterial,
+  };
+  const isFullyDestroyed = stats.totalPieces > 0 && stats.dislodgedPieces >= stats.totalPieces;
+  const displayHealth = isFullyDestroyed ? 0 : health.currentHealth;
+  const healthPercent = Math.max(
+    0,
+    Math.min(100, Math.round((displayHealth / health.maxHealth) * 100))
+  );
+
+  const [ghostPercent, setGhostPercent] = useState(healthPercent);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setGhostPercent(healthPercent);
+    }, 380);
+    return () => clearTimeout(timer);
+  }, [healthPercent]);
 
   return (
     <div
@@ -147,33 +169,32 @@ export function GameHUD({
 
         {/* Mountain Health & Telemetry Monitor */}
         {(() => {
-          const health = stats.health || {
-            maxHealth: 680,
-            currentHealth: 680,
-            selectedMaterial: selectedMaterial,
-          };
-          const isFullyDestroyed = stats.totalPieces > 0 && stats.dislodgedPieces >= stats.totalPieces;
-          const displayHealth = isFullyDestroyed ? 0 : health.currentHealth;
-          const healthPercent = Math.max(
-            0,
-            Math.min(100, Math.round((displayHealth / health.maxHealth) * 100))
-          );
+          const isWaveDmg = health.damageType === 'wave';
+          const isVortexDmg = health.damageType === 'vortex';
           const showRecentDmg =
             !isFullyDestroyed &&
             !!health.lastDamageTaken &&
-            performance.now() - (health.lastDamageTime || 0) < 1800;
+            performance.now() - (health.lastDamageTime || 0) < 1900;
 
           return (
             <div
               style={{
                 background: 'rgba(15, 23, 42, 0.88)',
                 backdropFilter: 'blur(14px)',
-                border: `1px solid ${isFullyDestroyed ? '#ef4444' : currentMaterial.themeColor}55`,
+                border: `1px solid ${
+                  isFullyDestroyed
+                    ? '#ef4444'
+                    : isWaveDmg && showRecentDmg
+                    ? '#c084fc'
+                    : `${currentMaterial.themeColor}55`
+                }`,
                 borderRadius: '12px',
                 padding: '12px 18px',
-                minWidth: '260px',
-                boxShadow: `0 8px 32px rgba(0, 0, 0, 0.55), 0 0 16px ${isFullyDestroyed ? '#ef4444' : currentMaterial.themeColor}20`,
-                transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
+                minWidth: '280px',
+                boxShadow: isWaveDmg && showRecentDmg
+                  ? '0 8px 32px rgba(0, 0, 0, 0.55), 0 0 20px rgba(192, 132, 252, 0.45)'
+                  : `0 8px 32px rgba(0, 0, 0, 0.55), 0 0 16px ${isFullyDestroyed ? '#ef4444' : currentMaterial.themeColor}20`,
+                transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
                 pointerEvents: 'auto',
               }}
             >
@@ -201,14 +222,26 @@ export function GameHUD({
                       style={{
                         fontSize: '11px',
                         fontWeight: 800,
-                        color: '#f43f5e',
-                        backgroundColor: 'rgba(244, 63, 94, 0.15)',
-                        border: '1px solid rgba(244, 63, 94, 0.4)',
-                        padding: '1px 6px',
+                        color: isWaveDmg ? '#e879f9' : isVortexDmg ? '#c084fc' : '#f43f5e',
+                        backgroundColor: isWaveDmg
+                          ? 'rgba(192, 132, 252, 0.25)'
+                          : isVortexDmg
+                          ? 'rgba(192, 132, 252, 0.18)'
+                          : 'rgba(244, 63, 94, 0.15)',
+                        border: `1px solid ${
+                          isWaveDmg ? '#c084fc' : isVortexDmg ? '#a855f7' : 'rgba(244, 63, 94, 0.4)'
+                        }`,
+                        padding: '1px 7px',
                         borderRadius: '4px',
+                        boxShadow: isWaveDmg ? '0 0 10px rgba(192, 132, 252, 0.5)' : undefined,
+                        letterSpacing: '0.4px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
                       }}
                     >
-                      -{health.lastDamageTaken} DMG
+                      {isWaveDmg ? '⚡ WAVE -' : isVortexDmg ? '🌀 VORTEX -' : '-'}
+                      {health.lastDamageTaken} {isWaveDmg ? 'HP' : 'DMG'}
                     </span>
                   )}
                   {isFullyDestroyed && (
@@ -249,21 +282,38 @@ export function GameHUD({
                 </div>
               </div>
 
-              {/* Dynamic Health Bar */}
+              {/* Dynamic Health Bar with Lagging Ghost Damage Layer */}
               <div
                 style={{
                   width: '100%',
-                  height: '10px',
+                  height: '11px',
                   backgroundColor: 'rgba(30, 41, 59, 0.85)',
                   borderRadius: '5px',
                   overflow: 'hidden',
                   marginBottom: '10px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  border: isWaveDmg && showRecentDmg ? '1px solid rgba(192, 132, 252, 0.65)' : '1px solid rgba(255, 255, 255, 0.08)',
                   position: 'relative',
+                  boxShadow: isWaveDmg && showRecentDmg ? '0 0 12px rgba(192, 132, 252, 0.35)' : undefined,
                 }}
               >
+                {/* Lagging Ghost Damage Bar (smoothly slides to visualize health lost) */}
                 <div
                   style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: `${Math.max(healthPercent, ghostPercent)}%`,
+                    height: '100%',
+                    backgroundColor: isWaveDmg ? 'rgba(192, 132, 252, 0.7)' : 'rgba(239, 68, 68, 0.7)',
+                    borderRadius: '5px',
+                    transition: 'width 0.75s cubic-bezier(0.25, 1, 0.5, 1)',
+                  }}
+                />
+
+                {/* Primary Real-Time Health Bar */}
+                <div
+                  style={{
+                    position: 'relative',
                     width: `${healthPercent}%`,
                     height: '100%',
                     background:
@@ -276,7 +326,8 @@ export function GameHUD({
                       healthPercent > 50
                         ? `0 0 10px ${currentMaterial.themeColor}66`
                         : '0 0 10px #ef444466',
-                    transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                    borderRadius: '5px',
+                    transition: 'width 0.16s ease-out',
                   }}
                 />
               </div>

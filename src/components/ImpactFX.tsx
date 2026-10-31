@@ -136,6 +136,12 @@ function SingleImpact({
   const vayuShockRing1MatRef = useRef<THREE.MeshBasicMaterial>(null);
   const vayuShockRing2Ref = useRef<THREE.Mesh>(null);
   const vayuShockRing2MatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const astralNovaRef = useRef<THREE.Group>(null);
+  const astralStarMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const astralCoreRef = useRef<THREE.Mesh>(null);
+  const astralCoreMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const astralRingRef = useRef<THREE.Mesh>(null);
+  const astralRingMatRef = useRef<THREE.MeshBasicMaterial>(null);
 
   const astraType = event.astraType || 'astral';
   const astraConf = ASTRA_CONFIGS[astraType] || ASTRA_CONFIGS.astral;
@@ -263,6 +269,15 @@ function SingleImpact({
           : rand < 0.92
           ? new THREE.Color('#10b981') // Emerald tempest shockwave
           : new THREE.Color('#047857'); // Deep compressed air green
+      } else if (astraType === 'astral') {
+        const rand = Math.random();
+        mixed = rand < 0.45
+          ? new THREE.Color('#ffffff') // Diamond white core
+          : rand < 0.78
+          ? new THREE.Color('#38bdf8') // Astral celestial sky blue
+          : rand < 0.92
+          ? new THREE.Color('#818cf8') // Radiant indigo starlight
+          : new THREE.Color('#0284c7');
       } else {
         const r = Math.random();
         mixed = r < 0.4 ? c1.clone() : r < 0.75 ? c2.clone() : c3.clone();
@@ -394,6 +409,28 @@ function SingleImpact({
         const s2 = 0.2 + Math.pow(progress, 0.55) * 9.5;
         vayuShockRing2Ref.current.scale.set(s2, s2, s2);
         vayuShockRing2MatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.7) * 0.75);
+      }
+    }
+
+    // 2c. Astral Arrow Celestial Starlight Nova Burst Animations
+    if (astraType === 'astral') {
+      if (astralNovaRef.current && astralStarMatRef.current) {
+        const nScale = 0.4 + Math.pow(progress, 0.35) * 4.2;
+        astralNovaRef.current.scale.set(nScale, nScale, nScale);
+        astralNovaRef.current.rotation.z += 8.0 * delta;
+        astralStarMatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.5) * 0.95);
+      }
+      if (astralCoreRef.current && astralCoreMatRef.current) {
+        const cScale = 0.5 + Math.pow(progress, 0.4) * 2.8;
+        astralCoreRef.current.scale.set(cScale, cScale, cScale);
+        astralCoreRef.current.rotation.x += 4.0 * delta;
+        astralCoreRef.current.rotation.y += 6.0 * delta;
+        astralCoreMatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.8) * 0.9);
+      }
+      if (astralRingRef.current && astralRingMatRef.current) {
+        const rScale = 0.3 + Math.pow(progress, 0.5) * 5.8;
+        astralRingRef.current.scale.set(rScale, rScale, rScale);
+        astralRingMatRef.current.opacity = Math.max(0, Math.pow(1 - progress, 1.6) * 0.85);
       }
     }
 
@@ -773,8 +810,65 @@ function SingleImpact({
             />
           </mesh>
         </group>
+      ) : astraType === 'astral' ? (
+        /* Astral Arrow Celestial Starlight Nova Burst */
+        <group quaternion={normalQuat}>
+          {/* 1. Rotating 4-Pointed Celestial Nova Star Cross */}
+          <group ref={astralNovaRef}>
+            <mesh>
+              <planeGeometry args={[0.3, 3.4]} />
+              <meshBasicMaterial
+                ref={astralStarMatRef}
+                color="#38bdf8"
+                transparent
+                opacity={0.95}
+                side={THREE.DoubleSide}
+                blending={THREE.AdditiveBlending}
+                depthWrite={false}
+              />
+            </mesh>
+            <mesh>
+              <planeGeometry args={[3.4, 0.3]} />
+              <meshBasicMaterial
+                color="#ffffff"
+                transparent
+                opacity={0.95}
+                side={THREE.DoubleSide}
+                blending={THREE.AdditiveBlending}
+                depthWrite={false}
+              />
+            </mesh>
+          </group>
+
+          {/* 2. Prismatic Crystalline Core Flash */}
+          <mesh ref={astralCoreRef} position={[0, 0, 0.2]}>
+            <octahedronGeometry args={[0.65, 0]} />
+            <meshBasicMaterial
+              ref={astralCoreMatRef}
+              color="#e0f2fe"
+              transparent
+              opacity={0.9}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* 3. Concentric Prismatic Starlight Shock Ring */}
+          <mesh ref={astralRingRef} position={[0, 0, 0.15]}>
+            <ringGeometry args={[0.4, 0.75, 48]} />
+            <meshBasicMaterial
+              ref={astralRingMatRef}
+              color="#38bdf8"
+              transparent
+              opacity={0.85}
+              side={THREE.DoubleSide}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+        </group>
       ) : (
-        /* Inner High-Energy Core Flash for Astral */
+        /* Inner High-Energy Core Flash Fallback */
         <mesh quaternion={normalQuat}>
           <circleGeometry args={[0.45, 24]} />
           <meshBasicMaterial

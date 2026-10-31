@@ -627,7 +627,7 @@ export function DestructibleMountain({
       const profile = MOUNTAIN_TYPES[materialType]?.profile;
       const toughness = profile?.toughness || 0.8;
       // Continuous gravitational wave pulse deals 20-30 damage per wave
-      const pulseDamage = Math.round(Math.max(12, 28 * (1 - toughness * 0.45) * vortices.length));
+      const pulseDamage = Math.round(Math.max(14, 28 * (1 - toughness * 0.45) * vortices.length));
 
       setHealthState((prev) => {
         const nextHealth = Math.max(0, prev.currentHealth - pulseDamage);
@@ -636,12 +636,13 @@ export function DestructibleMountain({
           currentHealth: nextHealth,
           lastDamageTaken: pulseDamage,
           lastDamageTime: now,
+          damageType: 'wave',
         };
       });
 
       // Gravitational tidal resonance waves destabilize and loosen nearby fragile chunks
       vortices.forEach((v) => {
-        const waveFieldRadius = v.radius * 1.5;
+        const waveFieldRadius = v.radius * 1.15;
         setDislodgedMap((prev) => {
           let updated = false;
           const next = new Map(prev);
@@ -652,7 +653,7 @@ export function DestructibleMountain({
               const dz = p.position[2] - v.center[2];
               const dist = Math.hypot(dx, dy, dz);
 
-              if (dist <= waveFieldRadius && Math.random() < 0.2) {
+              if (dist <= waveFieldRadius && Math.random() < 0.07) {
                 updated = true;
                 const invDist = Math.max(0.2, dist);
                 next.set(p.id, [
@@ -700,6 +701,7 @@ export function DestructibleMountain({
         currentHealth: nextHealth,
         lastDamageTaken: dmg,
         lastDamageTime: performance.now(),
+        damageType: 'direct',
       };
     });
   }, []);
@@ -869,6 +871,7 @@ export function DestructibleMountain({
             currentHealth: newHealth,
             lastDamageTaken: dmgDealt > 0 ? dmgDealt : hPrev.lastDamageTaken,
             lastDamageTime: dmgDealt > 0 ? performance.now() : hPrev.lastDamageTime,
+            damageType: astraType === 'brahmashira' ? 'vortex' : 'direct',
           };
         });
 
