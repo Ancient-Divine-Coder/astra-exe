@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { MountainStats, AstraType, MountainMaterialType } from '../types/game';
+import type { MountainStats, AstraType, MountainMaterialType, MountainLevel } from '../types/game';
 import { ASTRA_CONFIGS, MOUNTAIN_TYPES } from '../types/game';
 
 interface GameHUDProps {
@@ -9,8 +9,10 @@ interface GameHUDProps {
   showTrajectory: boolean;
   selectedAstra: AstraType;
   selectedMaterial: MountainMaterialType;
+  targetLevel?: MountainLevel;
   onSelectAstra: (astra: AstraType) => void;
   onSelectMaterial: (material: MountainMaterialType) => void;
+  onSelectLevel?: (level: MountainLevel) => void;
   onToggleTrajectory: () => void;
   onResetMountain: () => void;
   onClearArrows?: () => void;
@@ -23,8 +25,10 @@ export function GameHUD({
   showTrajectory,
   selectedAstra,
   selectedMaterial,
+  targetLevel = 1,
   onSelectAstra,
   onSelectMaterial,
+  onSelectLevel,
   onToggleTrajectory,
   onResetMountain,
 }: GameHUDProps) {
@@ -39,6 +43,8 @@ export function GameHUD({
         onResetMountain();
       } else if (key === 't') {
         onToggleTrajectory();
+      } else if (key === 'l') {
+        onSelectLevel?.(targetLevel === 1 ? 2 : 1);
       } else if (key === '1') {
         onSelectAstra('astral');
       } else if (key === '2') {
@@ -65,16 +71,22 @@ export function GameHUD({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onResetMountain, onSelectAstra, onSelectMaterial, onToggleTrajectory, selectedMaterial]);
+  }, [onResetMountain, onSelectAstra, onSelectMaterial, onSelectLevel, onToggleTrajectory, selectedMaterial, targetLevel]);
 
   const currentAstra = ASTRA_CONFIGS[selectedAstra] || ASTRA_CONFIGS.astral;
   const currentMaterial = MOUNTAIN_TYPES[selectedMaterial] || MOUNTAIN_TYPES.Basalt;
+  const isLevel2 = targetLevel === 2;
+  const targetLabel = isLevel2 ? 'PLANETOID' : 'MOUNTAIN';
+  const matDisplayName = isLevel2
+    ? currentMaterial.name.replace(' Mountain', ' Planetoid')
+    : currentMaterial.name;
 
   // Track real-time health & trailing ghost damage bar
   const health = stats.health || {
-    maxHealth: 680,
-    currentHealth: 680,
+    maxHealth: isLevel2 ? 3400 : 680,
+    currentHealth: isLevel2 ? 3400 : 680,
     selectedMaterial: selectedMaterial,
+    level: targetLevel,
   };
   const isFullyDestroyed = stats.totalPieces > 0 && stats.dislodgedPieces >= stats.totalPieces;
   const displayHealth = isFullyDestroyed ? 0 : health.currentHealth;
@@ -215,7 +227,7 @@ export function GameHUD({
                       letterSpacing: '0.8px',
                     }}
                   >
-                    {isFullyDestroyed ? 'MOUNTAIN DESTROYED' : 'MOUNTAIN HEALTH'}
+                    {isFullyDestroyed ? `${targetLabel} DESTROYED` : `${targetLabel} HEALTH`}
                   </span>
                   {showRecentDmg && (
                     <span
@@ -340,9 +352,9 @@ export function GameHUD({
                   color: '#cbd5e1',
                 }}
               >
-                <span>Armor Material:</span>
+                <span>{isLevel2 ? 'Planetary Armor:' : 'Armor Material:'}</span>
                 <strong style={{ color: currentMaterial.themeColor }}>
-                  {currentMaterial.name} ({health.maxHealth} HP)
+                  {matDisplayName} ({health.maxHealth} HP)
                 </strong>
               </div>
 
@@ -546,14 +558,64 @@ export function GameHUD({
               color: '#94a3b8',
               letterSpacing: '1.2px',
               paddingLeft: '4px',
-              marginBottom: '2px',
+              marginBottom: '4px',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
             }}
           >
-            <span>MOUNTAIN</span>
-            <span style={{ fontSize: '9px', opacity: 0.7 }}>KEYS [B-D]</span>
+            <span>{isLevel2 ? 'PLANETOID [5X]' : 'MOUNTAIN'}</span>
+            <span style={{ fontSize: '9px', opacity: 0.7 }}>KEY [L] TOGGLE</span>
+          </div>
+
+          {/* Level Switcher: Level 1 Mountain vs Level 2 5x Sphere Planetoid */}
+          <div
+            style={{
+              display: 'flex',
+              background: 'rgba(15, 23, 42, 0.75)',
+              borderRadius: '8px',
+              padding: '3px',
+              gap: '4px',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
+              marginBottom: '4px',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => onSelectLevel?.(1)}
+              style={{
+                flex: 1,
+                background: !isLevel2 ? 'linear-gradient(135deg, #38bdf8, #0284c7)' : 'transparent',
+                color: !isLevel2 ? '#ffffff' : '#94a3b8',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 4px',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              LVL 1 • Mt
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectLevel?.(2)}
+              style={{
+                flex: 1,
+                background: isLevel2 ? 'linear-gradient(135deg, #c084fc, #7e22ce)' : 'transparent',
+                color: isLevel2 ? '#ffffff' : '#94a3b8',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 4px',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              LVL 2 • Sphere
+            </button>
           </div>
 
           {(Object.keys(MOUNTAIN_TYPES) as MountainMaterialType[]).map((matKey) => {
@@ -637,7 +699,7 @@ export function GameHUD({
                     marginTop: '2px',
                   }}
                 >
-                  {conf.name.replace(' Mountain', '')}
+                  {conf.name.replace(' Mountain', isLevel2 ? ' Sphere' : '')}
                 </div>
                 <div
                   style={{
@@ -645,7 +707,7 @@ export function GameHUD({
                     color: isSelected ? conf.themeColor : '#94a3b8',
                   }}
                 >
-                  {conf.subtitle}
+                  {isLevel2 ? `Celestial ${matKey} Planetoid` : conf.subtitle}
                 </div>
               </button>
             );
@@ -738,7 +800,8 @@ export function GameHUD({
         >
           <div>🏹 <strong style={{ color: '#e2e8f0' }}>Click & Drag Bow:</strong> Draw string backwards to aim & charge</div>
           <div>🔢 <strong style={{ color: '#e2e8f0' }}>Keys [1, 2, 3, 4]:</strong> Switch Divine Astra types (Astral, Agni, Vayu, Brahmashira)</div>
-          <div>🏔️ <strong style={{ color: '#e2e8f0' }}>Keys [B, I, C, D] or [M]:</strong> Forge Mountain Material (Basalt, Iron, Crystal, Ductile)</div>
+          <div>🪐 <strong style={{ color: '#e2e8f0' }}>Key [L]:</strong> Toggle Target Level (Lvl 1 Mountain / Lvl 2 5x Planetoid Sphere)</div>
+          <div>🏔️ <strong style={{ color: '#e2e8f0' }}>Keys [B, I, C, D] or [M]:</strong> Forge Target Material (Basalt, Iron, Crystal, Ductile)</div>
           <div>🎥 <strong style={{ color: '#e2e8f0' }}>Drag Background:</strong> Orbit camera around island</div>
         </div>
 

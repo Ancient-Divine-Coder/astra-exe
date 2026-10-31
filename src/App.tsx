@@ -9,12 +9,13 @@ import { CelestialBow } from './components/CelestialBow';
 import { ImpactFX } from './components/ImpactFX';
 import { CameraShakeRig, type CameraShakeHandle } from './components/CameraShakeRig';
 import { GameHUD } from './components/GameHUD';
-import type { MountainStats, ImpactEvent, AstraType, MountainMaterialType } from './types/game';
+import type { MountainStats, ImpactEvent, AstraType, MountainMaterialType, MountainLevel } from './types/game';
 import { initializeMountainHealth } from './types/game';
 
 export default function App() {
   const [selectedAstra, setSelectedAstra] = useState<AstraType>('astral');
   const [mountainMaterial, setMountainMaterial] = useState<MountainMaterialType>('Basalt');
+  const [targetLevel, setTargetLevel] = useState<MountainLevel>(1);
   const [isAiming, setIsAiming] = useState(false);
   const [drawPower, setDrawPower] = useState(0);
   const [showTrajectory, setShowTrajectory] = useState(true);
@@ -28,7 +29,7 @@ export default function App() {
     activePieces: 0,
     dislodgedPieces: 0,
     coreIntact: true,
-    health: initializeMountainHealth('Basalt'),
+    health: initializeMountainHealth('Basalt', 1),
   }));
 
   const handleImpact = useCallback((data: Omit<ImpactEvent, 'id'>) => {
@@ -63,9 +64,9 @@ export default function App() {
       dislodgedPieces: 0,
       activePieces: prev.totalPieces,
       coreIntact: true,
-      health: initializeMountainHealth(mountainMaterial),
+      health: initializeMountainHealth(mountainMaterial, targetLevel),
     }));
-  }, [mountainMaterial]);
+  }, [mountainMaterial, targetLevel]);
 
   const handleToggleTrajectory = useCallback(() => {
     setShowTrajectory((prev) => !prev);
@@ -95,10 +96,11 @@ export default function App() {
           {/* Milestone 1: Multi-Tiered Floating Celestial Island (Player Sanctum) */}
           <CelestialIsland />
 
-          {/* Milestone 3: Destructible Mountain with 4 Selectable Material Profiles across the Cosmic Chasm */}
+          {/* Milestone 3: Destructible Mountain / Level 2 5x Planetoid across the Cosmic Chasm */}
           <DestructibleMountain
-            key={`mountain_${mountainMaterial}_${resetTrigger}`}
+            key={`target_${mountainMaterial}_lvl${targetLevel}_${resetTrigger}`}
             materialType={mountainMaterial}
+            level={targetLevel}
             onStatsChange={setMountainStats}
             onImpact={handleImpact}
           />
@@ -126,7 +128,7 @@ export default function App() {
         {/* Orbit Camera: Automatically disabled during bow aiming */}
         <OrbitControls
           makeDefault
-          target={[0, 4.8, -16]}
+          target={targetLevel === 2 ? [0, 10.0, -22] : [0, 4.8, -16]}
           enabled={!isAiming}
           enableDamping
           dampingFactor={0.06}
@@ -144,8 +146,10 @@ export default function App() {
         showTrajectory={showTrajectory}
         selectedAstra={selectedAstra}
         selectedMaterial={mountainMaterial}
+        targetLevel={targetLevel}
         onSelectAstra={setSelectedAstra}
         onSelectMaterial={setMountainMaterial}
+        onSelectLevel={setTargetLevel}
         onToggleTrajectory={handleToggleTrajectory}
         onResetMountain={handleResetMountain}
       />

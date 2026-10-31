@@ -259,24 +259,31 @@ export interface ImpactEvent {
   materialType?: MountainMaterialType;
 }
 
+export type MountainLevel = 1 | 2;
+
 export interface MountainHealthState {
   maxHealth: number;
   currentHealth: number;
   selectedMaterial: MountainMaterialType;
+  level: MountainLevel;
   lastDamageTaken?: number;
   lastDamageTime?: number;
   damageType?: 'direct' | 'wave' | 'vortex';
 }
 
-export function initializeMountainHealth(materialType: MountainMaterialType): MountainHealthState {
+export function initializeMountainHealth(
+  materialType: MountainMaterialType,
+  level: MountainLevel = 1
+): MountainHealthState {
   const profile = MOUNTAIN_MATERIALS[materialType] || MOUNTAIN_MATERIALS.Basalt;
-  const baseVolumeFactor = 1000;
+  const baseVolumeFactor = level === 2 ? 5000 : 1000;
   const maxHealth = Math.round(baseVolumeFactor * profile.hardness * profile.toughness);
 
   return {
     maxHealth,
     currentHealth: maxHealth,
     selectedMaterial: materialType,
+    level,
   };
 }
 
@@ -284,7 +291,8 @@ export function calculateArrowImpactDamage(
   arrowMass: number,
   impactSpeed: number,
   materialProfile: MountainMaterialProfile,
-  astraType: AstraType = 'astral'
+  astraType: AstraType = 'astral',
+  level: MountainLevel = 1
 ): number {
   // Kinetic Energy formula: KE = 0.5 * m * v^2
   const rawKE = 0.5 * arrowMass * (impactSpeed * impactSpeed);
@@ -316,6 +324,11 @@ export function calculateArrowImpactDamage(
     if (astraType === 'agni') finalDamage *= 3.2;
     else if (astraType === 'vayu') finalDamage *= 1.65;
     else if (astraType === 'brahmashira') finalDamage *= 1.50;
+  }
+
+  // Level 2 (5x Planetary Body): Scaled impact scaling for giant celestial sphere
+  if (level === 2) {
+    finalDamage *= 1.85;
   }
 
   return Math.round(finalDamage);

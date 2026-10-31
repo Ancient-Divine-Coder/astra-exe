@@ -11,6 +11,7 @@ import type {
   MountainMaterialProfile,
   MountainMaterialType,
   MountainHealthState,
+  MountainLevel,
 } from '../types/game';
 import { initializeMountainHealth, calculateArrowImpactDamage } from '../types/game';
 
@@ -25,6 +26,7 @@ export interface ActiveVortex {
 
 interface DestructibleMountainProps {
   materialType?: MountainMaterialType;
+  level?: MountainLevel;
   onStatsChange?: (stats: MountainStats) => void;
   onImpact?: (impact: {
     position: [number, number, number];
@@ -189,9 +191,263 @@ export function generateMountainPieces(materialType: MountainMaterialType = 'Bas
   return pieces;
 }
 
+// ============================================================================
+// LEVEL 2: 5x Scale Destructible Planetoid / Celestial Sphere
+// Massive floating spherical celestial body across the cosmic chasm (Z = -70, elevated Y = 16.0)
+// Constructed out of ~49 faceted spherical mantle/crust plates enveloping a celestial core
+// ============================================================================
+export function generatePlanetoidPieces(materialType: MountainMaterialType = 'Basalt'): FracturedPieceConfig[] {
+  const pieces: FracturedPieceConfig[] = [];
+  const centerZ = -70;
+  const centerY = 16.0;
+  const PLANET_RADIUS = 14.5; // ~29 unit diameter (5x scale of mountain cross-section)
+
+  const matConfig = MOUNTAIN_TYPES[materialType] || MOUNTAIN_TYPES.Basalt;
+  const mountainMat = matConfig.profile;
+  const palette = matConfig.palette;
+
+  const addPiece = (
+    id: string,
+    tier: 'foundation' | 'mid' | 'peak' | 'core',
+    worldPos: [number, number, number],
+    baseScale: [number, number, number],
+    rotation: [number, number, number],
+    baseMass: number,
+    color: string,
+    emissiveColor: string,
+    emissiveIntensity: number,
+    shapeType: FracturedPieceConfig['shapeType'],
+    material: MountainMaterialProfile,
+    customThresholdMultiplier: number,
+    isCore = false
+  ) => {
+    const calcMass = baseMass * (material.density / 10.0);
+    const dynamicThreshold = Math.round(180 * material.toughness * customThresholdMultiplier);
+
+    pieces.push({
+      id,
+      tier,
+      position: worldPos,
+      scale: baseScale,
+      rotation,
+      mass: calcMass,
+      friction: material.name === 'Crystal' ? 0.35 : material.name === 'Iron-Core' ? 0.45 : 0.8,
+      restitution: material.restitution,
+      linearDamping: 0.22,
+      angularDamping: 0.45,
+      color,
+      emissiveColor,
+      emissiveIntensity: emissiveIntensity * palette.emissiveIntensityMultiplier,
+      metalness: palette.metalness,
+      roughness: palette.roughness,
+      shapeType,
+      material,
+      fractureThreshold: dynamicThreshold,
+      isCore,
+    });
+  };
+
+  // 1. Central Hyper-Dense Planetary Celestial Core
+  addPiece(
+    'celestial_core',
+    'core',
+    [0.0, centerY, centerZ],
+    [3.8, 3.8, 3.8],
+    [0.1, 0.4, 0.2],
+    16.0,
+    palette.core,
+    palette.coreEmissive,
+    3.4,
+    'crystal_shard',
+    mountainMat,
+    1.6,
+    true
+  );
+
+  // 2. Deep Mantle Asthenosphere Wedges (8 chunks at radius R * 0.52 = 7.5)
+  const mantleRadius = PLANET_RADIUS * 0.52;
+  const mColor = palette.mid;
+  const mEmissive = palette.midEmissive;
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI * 2) / 8;
+    const yOff = (i % 2 === 0 ? 1 : -1) * 2.8;
+    const px = Math.cos(angle) * mantleRadius;
+    const pz = Math.sin(angle) * mantleRadius;
+    addPiece(
+      `pl_mantle_${i}`,
+      'mid',
+      [px, centerY + yOff, centerZ + pz],
+      [4.2, 4.0, 4.2],
+      [0.15, angle, 0.1],
+      7.5,
+      mColor,
+      mEmissive,
+      0.45,
+      i % 2 === 0 ? 'boulder' : 'slab',
+      mountainMat,
+      1.1
+    );
+  }
+
+  // 3. North Polar Cap (latitude 75° to 90°)
+  const pColor = palette.peak;
+  const pEmissive = palette.peakEmissive;
+  // Apex North Pole
+  addPiece(
+    'pl_north_apex',
+    'peak',
+    [0.0, centerY + PLANET_RADIUS * 0.98, centerZ],
+    [4.6, 3.8, 4.6],
+    [0.05, 0, 0.05],
+    6.5,
+    pColor,
+    pEmissive,
+    0.65,
+    'peak',
+    mountainMat,
+    0.95
+  );
+
+  // North polar ring (4 chunks at latitude 65°)
+  const nRingRadius = PLANET_RADIUS * Math.cos((65 * Math.PI) / 180);
+  const nRingY = PLANET_RADIUS * Math.sin((65 * Math.PI) / 180);
+  for (let i = 0; i < 4; i++) {
+    const angle = (i * Math.PI * 2) / 4 + Math.PI / 4;
+    const px = Math.cos(angle) * nRingRadius;
+    const pz = Math.sin(angle) * nRingRadius;
+    addPiece(
+      `pl_np_ring_${i}`,
+      'peak',
+      [px, centerY + nRingY, centerZ + pz],
+      [4.4, 3.8, 4.4],
+      [0.2, angle, -0.1],
+      6.2,
+      pColor,
+      pEmissive,
+      0.55,
+      'boulder',
+      mountainMat,
+      0.9
+    );
+  }
+
+  // 4. Northern Temperate Belt (8 chunks at latitude 38°)
+  const nTempRadius = PLANET_RADIUS * Math.cos((38 * Math.PI) / 180);
+  const nTempY = PLANET_RADIUS * Math.sin((38 * Math.PI) / 180);
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI * 2) / 8;
+    const px = Math.cos(angle) * nTempRadius;
+    const pz = Math.sin(angle) * nTempRadius;
+    addPiece(
+      `pl_ntemp_${i}`,
+      'mid',
+      [px, centerY + nTempY, centerZ + pz],
+      [4.2, 4.2, 4.2],
+      [0.25 * Math.sin(angle), angle, 0.25 * Math.cos(angle)],
+      6.8,
+      mColor,
+      mEmissive,
+      0.45,
+      i % 2 === 0 ? 'boulder' : 'slab',
+      mountainMat,
+      0.95
+    );
+  }
+
+  // 5. Equatorial Tectonic Crust Belt (14 chunks at latitude 0°)
+  const eqRadius = PLANET_RADIUS;
+  const fColor = palette.foundation;
+  const fEmissive = palette.foundationEmissive;
+  for (let i = 0; i < 14; i++) {
+    const angle = (i * Math.PI * 2) / 14;
+    const yJitter = ((i % 3) - 1) * 1.5;
+    const px = Math.cos(angle) * eqRadius;
+    const pz = Math.sin(angle) * eqRadius;
+    addPiece(
+      `pl_eq_${i}`,
+      'foundation',
+      [px, centerY + yJitter, centerZ + pz],
+      [4.4, 4.4, 4.2],
+      [0.1, angle, 0],
+      7.2,
+      i % 2 === 0 ? fColor : mColor,
+      i % 2 === 0 ? fEmissive : mEmissive,
+      0.35,
+      i % 3 === 0 ? 'pillar' : i % 2 === 0 ? 'slab' : 'boulder',
+      mountainMat,
+      1.0
+    );
+  }
+
+  // 6. Southern Temperate Belt (8 chunks at latitude -38°)
+  const sTempRadius = PLANET_RADIUS * Math.cos((38 * Math.PI) / 180);
+  const sTempY = -PLANET_RADIUS * Math.sin((38 * Math.PI) / 180);
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI * 2) / 8 + Math.PI / 8;
+    const px = Math.cos(angle) * sTempRadius;
+    const pz = Math.sin(angle) * sTempRadius;
+    addPiece(
+      `pl_stemp_${i}`,
+      'foundation',
+      [px, centerY + sTempY, centerZ + pz],
+      [4.2, 4.2, 4.2],
+      [-0.25 * Math.sin(angle), angle, -0.25 * Math.cos(angle)],
+      7.0,
+      fColor,
+      fEmissive,
+      0.3,
+      i % 2 === 0 ? 'slab' : 'boulder',
+      mountainMat,
+      1.05
+    );
+  }
+
+  // 7. South Polar Ring (4 chunks at latitude -65°)
+  const sRingRadius = PLANET_RADIUS * Math.cos((65 * Math.PI) / 180);
+  const sRingY = -PLANET_RADIUS * Math.sin((65 * Math.PI) / 180);
+  for (let i = 0; i < 4; i++) {
+    const angle = (i * Math.PI * 2) / 4;
+    const px = Math.cos(angle) * sRingRadius;
+    const pz = Math.sin(angle) * sRingRadius;
+    addPiece(
+      `pl_sp_ring_${i}`,
+      'foundation',
+      [px, centerY + sRingY, centerZ + pz],
+      [4.4, 3.8, 4.4],
+      [-0.2, angle, 0.1],
+      6.8,
+      fColor,
+      fEmissive,
+      0.25,
+      'boulder',
+      mountainMat,
+      1.1
+    );
+  }
+
+  // South Pole Keystone Chunk
+  addPiece(
+    'pl_south_keystone',
+    'foundation',
+    [0.0, centerY - PLANET_RADIUS * 0.98, centerZ],
+    [4.8, 3.8, 4.8],
+    [Math.PI, 0, 0],
+    8.0,
+    fColor,
+    fEmissive,
+    0.2,
+    'peak',
+    mountainMat,
+    1.2
+  );
+
+  return pieces;
+}
+
 // Individual Fractured Piece
 function MountainPiece({
   config,
+  level = 1,
   isDislodged,
   impulse,
   vortices,
@@ -201,6 +457,7 @@ function MountainPiece({
   onDespawn,
 }: {
   config: FracturedPieceConfig;
+  level?: MountainLevel;
   isDislodged: boolean;
   impulse?: [number, number, number];
   vortices?: ActiveVortex[];
@@ -310,14 +567,14 @@ function MountainPiece({
         }
       }
 
-      // Smoothly shrink piece as it plunges past the abyss edge toward Y = -15
+      // Smoothly shrink piece as it plunges past the abyss edge toward Y = -18
       if (pos.y < -5 && meshRef.current) {
-        const shrink = Math.max(0.01, 1.0 - (-5 - pos.y) / 10);
+        const shrink = Math.max(0.01, 1.0 - (-5 - pos.y) / 14);
         meshRef.current.scale.set(shrink, shrink, shrink);
       }
 
-      // Automatically dispose of falling debris when Y < -15 or Z < -100
-      if (pos.y < -15 || pos.z < -100 || Math.abs(pos.x) > 60) {
+      // Automatically dispose of falling debris when Y < -25 or Z < -140
+      if (pos.y < -25 || pos.z < -140 || Math.abs(pos.x) > 85) {
         isDespawningRef.current = true;
         onDespawn?.(config.id);
       }
@@ -381,8 +638,8 @@ function MountainPiece({
         const impactSpeed = recordedSpeed && recordedSpeed > 20 ? recordedSpeed : Math.max(50, measuredSpeed);
         const arrowMass = otherBody ? otherBody.mass() : 1.5;
 
-        // 2. Compute Mountain Health Bar Damage via calculateArrowImpactDamage
-        const dmg = calculateArrowImpactDamage(arrowMass, impactSpeed, material, astraType);
+        // 2. Compute Mountain / Planetoid Health Bar Damage via calculateArrowImpactDamage
+        const dmg = calculateArrowImpactDamage(arrowMass, impactSpeed, material, astraType, level);
         onDamage?.(dmg);
 
         let impactEnergy = impactSpeed * arrowMass;
@@ -591,26 +848,30 @@ function MountainPiece({
 
 export function DestructibleMountain({
   materialType = 'Basalt',
+  level = 1,
   onStatsChange,
   onImpact,
 }: DestructibleMountainProps) {
-  const pieces = useMemo(() => generateMountainPieces(materialType), [materialType]);
+  const pieces = useMemo(
+    () => (level === 2 ? generatePlanetoidPieces(materialType) : generateMountainPieces(materialType)),
+    [materialType, level]
+  );
   const [dislodgedMap, setDislodgedMap] = useState<Map<string, [number, number, number]>>(new Map());
   const [despawnedSet, setDespawnedSet] = useState<Set<string>>(new Set());
   const [vortices, setVortices] = useState<ActiveVortex[]>([]);
 
-  // Mountain Health State Management
+  // Mountain / Planetoid Health State Management
   const [healthState, setHealthState] = useState<MountainHealthState>(() =>
-    initializeMountainHealth(materialType)
+    initializeMountainHealth(materialType, level)
   );
 
-  // Sync health pool when material profile changes
+  // Sync health pool when material profile or level changes
   useEffect(() => {
-    setHealthState(initializeMountainHealth(materialType));
+    setHealthState(initializeMountainHealth(materialType, level));
     setDislodgedMap(new Map());
     setDespawnedSet(new Set());
     setVortices([]);
-  }, [materialType]);
+  }, [materialType, level]);
 
   // Clean expired singularity vortices and emit continuous gravitational energy wave damage
   const lastWaveDamageTimeRef = useRef(0);
@@ -922,6 +1183,7 @@ export function DestructibleMountain({
           <MountainPiece
             key={piece.id}
             config={piece}
+            level={level}
             isDislodged={dislodgedMap.has(piece.id)}
             impulse={dislodgedMap.get(piece.id)}
             vortices={vortices}

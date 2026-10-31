@@ -89,8 +89,8 @@ function Arrow({
         };
       }
 
-      // Mountain is at Z = -50. If arrow passes Z = -82, falls below Y = -38, or flies off sideways, delete it!
-      if (pos.z < -82 || pos.y < -38 || Math.abs(pos.x) > 65 || Math.abs(pos.z) > 130) {
+      // Mountain is at Z = -50; Planetoid is at Z = -72. If arrow passes Z = -110, falls below Y = -45, or flies off sideways, delete it!
+      if (pos.z < -110 || pos.y < -45 || Math.abs(pos.x) > 85 || Math.abs(pos.z) > 160) {
         isDestroyedRef.current = true;
         onDestroy(id);
       }
@@ -415,8 +415,8 @@ export function CelestialBow({
     const v0 = worldAimDir.clone().multiplyScalar(forwardSpeed);
     const g = 9.81;
 
-    // Flight time to reach mountain distance (Z ~ -68 for deep mountain at Z = -50)
-    const totalFlightTime = Math.min(2.5, Math.max(0.4, (-68 - p0.z) / v0.z));
+    // Flight time to reach target distance (Z ~ -92 for deep planetoid or mountain)
+    const totalFlightTime = Math.min(3.2, Math.max(0.4, (-92 - p0.z) / v0.z));
     const steps = 60;
 
     const trajectoryPoints: THREE.Vector3[] = [p0.clone()];
